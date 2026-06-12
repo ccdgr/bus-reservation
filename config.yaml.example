@@ -1,0 +1,13 @@
+server:
+  port: ":8080"
+
+mysql:
+  dsn: "user:password@tcp(127.0.0.1:3306)/bus_reservation?charset=utf8mb4&parseTime=True&loc=Local"
+
+redis:
+  addr: "127.0.0.1:6379"
+  password: ""
+  db: 0
+
+rabbitmq:
+  url: "amqp://guest:guest@localhost:5672/"

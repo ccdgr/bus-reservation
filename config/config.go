@@ -1,0 +1,40 @@
+package config
+
+import (
+	"os"
+
+	"gopkg.in/yaml.v3"
+)
+
+type Config struct {
+	Server struct {
+		Port string `yaml:"port"`
+	} `yaml:"server"`
+	MySQL struct {
+		DSN string `yaml:"dsn"`
+	} `yaml:"mysql"`
+	Redis struct {
+		Addr     string `yaml:"addr"`
+		Password string `yaml:"password"`
+		DB       int    `yaml:"db"`
+	} `yaml:"redis"`
+	RabbitMQ struct {
+		URL string `yaml:"url"`
+	} `yaml:"rabbitmq"`
+}
+
+func LoadConfig(path string) (*Config, error) {
+	config := &Config{}
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	d := yaml.NewDecoder(file)
+	if err := d.Decode(&config); err != nil {
+		return nil, err
+	}
+
+	return config, nil
+}
