@@ -8,7 +8,8 @@ import (
 
 type Config struct {
 	Server struct {
-		Port string `yaml:"port"`
+		Port      string `yaml:"port"`
+		JWTSecret string `yaml:"jwt_secret"`
 	} `yaml:"server"`
 	MySQL struct {
 		DSN string `yaml:"dsn"`

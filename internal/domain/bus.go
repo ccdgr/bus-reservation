@@ -23,4 +23,12 @@ type BusRepository interface {
 	GetByID(ctx context.Context, id uint64) (*Bus, error)
 	List(ctx context.Context) ([]*Bus, error)
 	UpdateSeat(ctx context.Context, busID uint64, delta int) error
+	DecrSeat(ctx context.Context, busID uint64) (bool, error)
+	IncrSeat(ctx context.Context, busID uint64) error
+}
+
+// BusUsecase 班次业务逻辑接口
+type BusUsecase interface {
+	List(ctx context.Context) ([]*Bus, error)
+	GetByID(ctx context.Context, id uint64) (*Bus, error)
 }

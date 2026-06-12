@@ -1,33 +1,69 @@
 package http
 
 import (
+	"net/http"
+	"strconv"
+
+	"github.com/ccdgr/bus-reservation/internal/domain"
 	"github.com/gin-gonic/gin"
 )
 
 type OrderHandler struct {
-	// TODO: Inject OrderUsecase
+	usecase domain.OrderUsecase
 }
 
-func NewOrderHandler(r *gin.RouterGroup) {
-	handler := &OrderHandler{}
+func NewOrderHandler(r *gin.RouterGroup, usecase domain.OrderUsecase, authMiddleware gin.HandlerFunc) {
+	handler := &OrderHandler{usecase: usecase}
+	r.Use(authMiddleware)
 	r.POST("", handler.CreateOrder)
 	r.GET("", handler.ListUserOrders)
-	r.GET("/:id", handler.GetOrder)
 	r.POST("/:id/cancel", handler.CancelOrder)
 }
 
+type createOrderRequest struct {
+	BusID uint64 `json:"bus_id" binding:"required"`
+}
+
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
-	// TODO: Implement order creation logic
+	var req createOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID := c.MustGet("user_id").(uint64)
+	order, err := h.usecase.Create(c.Request.Context(), userID, req.BusID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, order)
 }
 
 func (h *OrderHandler) ListUserOrders(c *gin.Context) {
-	// TODO: Implement list user orders logic
-}
-
-func (h *OrderHandler) GetOrder(c *gin.Context) {
-	// TODO: Implement get order detail logic
+	userID := c.MustGet("user_id").(uint64)
+	orders, err := h.usecase.ListByUserID(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, orders)
 }
 
 func (h *OrderHandler) CancelOrder(c *gin.Context) {
-	// TODO: Implement order cancellation logic
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+
+	err = h.usecase.Cancel(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "order cancelled"})
 }

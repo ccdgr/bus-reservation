@@ -22,3 +22,10 @@ type UserRepository interface {
 	GetByUsername(ctx context.Context, username string) (*User, error)
 	Create(ctx context.Context, user *User) error
 }
+
+// UserUsecase 用户业务逻辑接口
+type UserUsecase interface {
+	Register(ctx context.Context, username, password, realName string, userType int) error
+	Login(ctx context.Context, username, password string) (string, error)
+	GetProfile(ctx context.Context, id uint64) (*User, error)
+}

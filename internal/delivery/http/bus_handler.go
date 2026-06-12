@@ -1,23 +1,44 @@
 package http
 
 import (
+	"net/http"
+	"strconv"
+
+	"github.com/ccdgr/bus-reservation/internal/domain"
 	"github.com/gin-gonic/gin"
 )
 
 type BusHandler struct {
-	// TODO: Inject BusUsecase
+	usecase domain.BusUsecase
 }
 
-func NewBusHandler(r *gin.RouterGroup) {
-	handler := &BusHandler{}
+func NewBusHandler(r *gin.RouterGroup, usecase domain.BusUsecase) {
+	handler := &BusHandler{usecase: usecase}
 	r.GET("", handler.ListBuses)
 	r.GET("/:id", handler.GetBus)
 }
 
 func (h *BusHandler) ListBuses(c *gin.Context) {
-	// TODO: Implement list buses logic
+	buses, err := h.usecase.List(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, buses)
 }
 
 func (h *BusHandler) GetBus(c *gin.Context) {
-	// TODO: Implement get bus detail logic
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bus id"})
+		return
+	}
+
+	bus, err := h.usecase.GetByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "bus not found"})
+		return
+	}
+	c.JSON(http.StatusOK, bus)
 }
