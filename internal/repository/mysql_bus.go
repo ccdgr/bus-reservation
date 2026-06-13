@@ -33,9 +33,21 @@ func (r *mysqlBusRepository) GetByID(ctx context.Context, id uint64) (*domain.Bu
 	return v.(*domain.Bus), nil
 }
 
-func (r *mysqlBusRepository) List(ctx context.Context) ([]*domain.Bus, error) {
+func (r *mysqlBusRepository) List(ctx context.Context, origin, dest string, date string) ([]*domain.Bus, error) {
+	query := r.db.WithContext(ctx).Model(&domain.Bus{})
+
+	if origin != "" {
+		query = query.Where("origin = ?", origin)
+	}
+	if dest != "" {
+		query = query.Where("dest = ?", dest)
+	}
+	if date != "" {
+		query = query.Where("DATE(start_time) = ?", date)
+	}
+
 	var buses []*domain.Bus
-	if err := r.db.WithContext(ctx).Find(&buses).Error; err != nil {
+	if err := query.Order("start_time ASC").Find(&buses).Error; err != nil {
 		return nil, err
 	}
 	return buses, nil

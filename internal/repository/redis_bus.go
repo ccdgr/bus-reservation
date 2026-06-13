@@ -44,7 +44,7 @@ func (r *RedisBusRepository) GetByID(ctx context.Context, id uint64) (*domain.Bu
 	return nil, fmt.Errorf("not implemented")
 }
 
-func (r *RedisBusRepository) List(ctx context.Context) ([]*domain.Bus, error) {
+func (r *RedisBusRepository) List(ctx context.Context, origin, dest string, date string) ([]*domain.Bus, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 

@@ -19,7 +19,11 @@ func NewBusHandler(r *gin.RouterGroup, usecase domain.BusUsecase) {
 }
 
 func (h *BusHandler) ListBuses(c *gin.Context) {
-	buses, err := h.usecase.List(c.Request.Context())
+	origin := c.Query("origin")
+	dest := c.Query("dest")
+	date := c.Query("date")
+
+	buses, err := h.usecase.List(c.Request.Context(), origin, dest, date)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
