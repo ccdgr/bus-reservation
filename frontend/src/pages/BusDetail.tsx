@@ -93,7 +93,19 @@ const BusDetail: React.FC = () => {
 
       // 3. 调用支付接口 (Status 1)
       if (orderID) {
-        await client.post(`/orders/${orderID}/pay`);
+        let payRes;
+        if (selectedMethod === 'alipay') {
+          payRes = await client.post(`/orders/${orderID}/pay`);
+        } else {
+          // If not Alipay, we simulate the internal mock
+          payRes = await client.post(`/orders/${orderID}/pay`);
+        }
+
+        if (payRes.data.payment_url) {
+          // Real Alipay flow: redirect to Alipay Sandbox
+          window.location.href = payRes.data.payment_url;
+          return;
+        }
       }
 
       setPayDialogOpen(false);

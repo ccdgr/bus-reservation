@@ -40,7 +40,8 @@ type OrderUsecase interface {
 	Create(ctx context.Context, userID, busID uint64) (*Order, error)
 	ListByUserID(ctx context.Context, userID uint64) ([]*Order, error)
 	Cancel(ctx context.Context, orderID uint64) error
-	Pay(ctx context.Context, orderID uint64) error
+	Pay(ctx context.Context, orderID uint64) (string, error)
+	ConfirmPayment(ctx context.Context, orderID uint64) error
 	Verify(ctx context.Context, orderID uint64) error
 }
 

@@ -22,6 +22,13 @@ type Config struct {
 	RabbitMQ struct {
 		URL string `yaml:"url"`
 	} `yaml:"rabbitmq"`
+	Alipay struct {
+		AppID        string `yaml:"app_id"`
+		PrivateKey   string `yaml:"private_key"`
+		AliPublicKey string `yaml:"alipay_public_key"`
+		NotifyURL    string `yaml:"notify_url"`
+		ReturnURL    string `yaml:"return_url"`
+	} `yaml:"alipay"`
 }
 
 func LoadConfig(path string) (*Config, error) {

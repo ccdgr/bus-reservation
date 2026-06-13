@@ -17,17 +17,20 @@ import (
 	"github.com/gin-gonic/gin"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
+	"github.com/smartwalle/alipay/v3"
 	"gorm.io/gorm"
 
 	"github.com/ccdgr/bus-reservation/pkg/database"
 	"github.com/ccdgr/bus-reservation/pkg/mq"
+	"github.com/ccdgr/bus-reservation/pkg/payment"
 )
 
 type Container struct {
-	Config *config.Config
-	DB     *gorm.DB
-	RDB    *redis.Client
-	MQ     *amqp.Connection
+	Config    *config.Config
+	DB        *gorm.DB
+	RDB       *redis.Client
+	MQ        *amqp.Connection
+	AliClient *alipay.Client
 }
 
 func main() {
@@ -72,6 +75,18 @@ func main() {
 	}
 	defer ch.Close()
 
+	var aliClient *alipay.Client
+	if cfg.Alipay.AppID != "" && cfg.Alipay.AppID != "your_sandbox_app_id" {
+		aliClient, err = payment.NewAlipayClient(cfg.Alipay.AppID, cfg.Alipay.PrivateKey, cfg.Alipay.AliPublicKey, false)
+		if err != nil {
+			slog.Warn("failed to initialize alipay client, running in mock mode", "error", err)
+		} else {
+			slog.Info("alipay client initialized")
+		}
+	} else {
+		slog.Warn("alipay configuration missing or using defaults, running in mock mode")
+	}
+
 	// 3. Initialize Repositories
 	userRepo := repository.NewMySQLUserRepository(db)
 	busRepo := repository.NewMySQLBusRepository(db)
@@ -80,8 +95,8 @@ func main() {
 
 	// 4. Initialize Usecases
 	userUsecase := usecase.NewUserUsecase(userRepo, cfg.Server.JWTSecret)
-	busUsecase := usecase.NewBusUsecase(busRepo)
-	orderUsecase := usecase.NewOrderUsecase(orderRepo, busRepo, redisRepo, ch)
+	busUsecase := usecase.NewBusUsecase(busRepo, redisRepo)
+	orderUsecase := usecase.NewOrderUsecase(orderRepo, busRepo, redisRepo, ch, aliClient, cfg.Alipay.NotifyURL, cfg.Alipay.ReturnURL)
 
 	// 4.5 Warmup Redis Cache (Populate stock from MySQL)
 	go func() {
@@ -101,7 +116,7 @@ func main() {
 
 	// 5. Initialize Delivery (HTTP & MQ)
 	r := gin.Default()
-	deliveryHTTP.NewRouter(r, userUsecase, busUsecase, orderUsecase, cfg.Server.JWTSecret)
+	deliveryHTTP.NewRouter(r, userUsecase, busUsecase, orderUsecase, aliClient, cfg.Server.JWTSecret)
 
 	// Start MQ Consumer
 	consumer := deliveryMQ.NewOrderConsumer(mqConn, orderRepo, busRepo, redisRepo)

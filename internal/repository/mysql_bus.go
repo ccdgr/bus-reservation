@@ -75,3 +75,11 @@ func (r *mysqlBusRepository) IncrSeat(ctx context.Context, busID uint64) error {
 		Where("id = ?", busID).
 		UpdateColumn("left_seat", gorm.Expr("left_seat + 1")).Error
 }
+
+func (r *mysqlBusRepository) GetStock(ctx context.Context, busID uint64) (int, error) {
+	var bus domain.Bus
+	if err := r.db.WithContext(ctx).Select("left_seat").First(&bus, busID).Error; err != nil {
+		return 0, err
+	}
+	return bus.LeftSeat, nil
+}

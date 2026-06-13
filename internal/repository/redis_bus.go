@@ -40,6 +40,15 @@ func (r *RedisBusRepository) IncrSeat(ctx context.Context, busID uint64) error {
 	return r.client.Incr(ctx, key).Err()
 }
 
+func (r *RedisBusRepository) GetStock(ctx context.Context, busID uint64) (int, error) {
+	key := fmt.Sprintf("bus_stock:%d", busID)
+	val, err := r.client.Get(ctx, key).Int()
+	if err == redis.Nil {
+		return 0, nil
+	}
+	return val, err
+}
+
 func (r *RedisBusRepository) GetByID(ctx context.Context, id uint64) (*domain.Bus, error) {
 	return nil, fmt.Errorf("not implemented")
 }

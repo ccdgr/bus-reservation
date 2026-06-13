@@ -25,6 +25,7 @@ type BusRepository interface {
 	UpdateSeat(ctx context.Context, busID uint64, delta int) error
 	DecrSeat(ctx context.Context, busID uint64) (bool, error)
 	IncrSeat(ctx context.Context, busID uint64) error
+	GetStock(ctx context.Context, busID uint64) (int, error)
 }
 
 // BusUsecase 班次业务逻辑接口

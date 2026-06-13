@@ -1,13 +1,14 @@
 package usecase
-
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/ccdgr/bus-reservation/internal/domain"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/smartwalle/alipay/v3"
 )
 
 type orderUsecase struct {
@@ -15,16 +16,30 @@ type orderUsecase struct {
 	busRepo   domain.BusRepository
 	redisRepo domain.BusRepository
 	mqChannel *amqp.Channel
+	aliClient *alipay.Client
+	notifyURL string
+	returnURL string
 }
 
-func NewOrderUsecase(orderRepo domain.OrderRepository, busRepo domain.BusRepository, redisRepo domain.BusRepository, mqChannel *amqp.Channel) domain.OrderUsecase {
+func NewOrderUsecase(
+	orderRepo domain.OrderRepository,
+	busRepo domain.BusRepository,
+	redisRepo domain.BusRepository,
+	mqChannel *amqp.Channel,
+	aliClient *alipay.Client,
+	notifyURL, returnURL string,
+) domain.OrderUsecase {
 	return &orderUsecase{
 		orderRepo: orderRepo,
 		busRepo:   busRepo,
 		redisRepo: redisRepo,
 		mqChannel: mqChannel,
+		aliClient: aliClient,
+		notifyURL: notifyURL,
+		returnURL: returnURL,
 	}
 }
+
 
 type OrderMessage struct {
 	UserID  uint64 `json:"user_id"`
@@ -112,14 +127,50 @@ func (u *orderUsecase) Cancel(ctx context.Context, orderID uint64) error {
 	return u.busRepo.UpdateSeat(ctx, order.BusID, 1)
 }
 
-func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) error {
+func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) (string, error) {
+	order, err := u.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
+		return "", err
+	}
+
+	if !domain.CanTransition(order.Status, domain.StatusPendingVerification) {
+		return "", fmt.Errorf("current status %s cannot be paid", domain.GetStatusName(order.Status))
+	}
+
+	if u.aliClient == nil {
+		// Mock payment logic if alipay is not configured
+		err = u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusPendingVerification)
+		return "", err
+	}
+
+	var p = alipay.TradePagePay{}
+	p.NotifyURL = u.notifyURL
+	p.ReturnURL = u.returnURL
+	p.Subject = fmt.Sprintf("Bus Reservation Order #%d", orderID)
+	p.OutTradeNo = strconv.FormatUint(orderID, 10)
+	p.TotalAmount = "0.01" // Simulated amount
+	p.ProductCode = "FAST_INSTANT_TRADE_PAY"
+
+	url, err := u.aliClient.TradePagePay(p)
+	if err != nil {
+		return "", err
+	}
+
+	return url.String(), nil
+}
+
+func (u *orderUsecase) ConfirmPayment(ctx context.Context, orderID uint64) error {
 	order, err := u.orderRepo.GetByID(ctx, orderID)
 	if err != nil {
 		return err
 	}
 
 	if !domain.CanTransition(order.Status, domain.StatusPendingVerification) {
-		return fmt.Errorf("current status %s cannot be paid", domain.GetStatusName(order.Status))
+		// Might already be verified/paid if callback arrives multiple times
+		if order.Status == domain.StatusPendingVerification {
+			return nil
+		}
+		return fmt.Errorf("current status %s cannot confirm payment", domain.GetStatusName(order.Status))
 	}
 
 	return u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusPendingVerification)
