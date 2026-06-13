@@ -83,6 +83,22 @@ func main() {
 	busUsecase := usecase.NewBusUsecase(busRepo)
 	orderUsecase := usecase.NewOrderUsecase(orderRepo, busRepo, redisRepo, ch)
 
+	// 4.5 Warmup Redis Cache (Populate stock from MySQL)
+	go func() {
+		slog.Info("warming up redis cache...")
+		buses, err := busRepo.List(context.Background(), "", "", "")
+		if err != nil {
+			slog.Error("failed to list buses for warmup", "error", err)
+			return
+		}
+		for _, b := range buses {
+			if err := redisRepo.SetStock(context.Background(), b.ID, b.LeftSeat); err != nil {
+				slog.Error("failed to set redis stock for bus", "bus_id", b.ID, "error", err)
+			}
+		}
+		slog.Info("redis cache warmup completed", "count", len(buses))
+	}()
+
 	// 5. Initialize Delivery (HTTP & MQ)
 	r := gin.Default()
 	deliveryHTTP.NewRouter(r, userUsecase, busUsecase, orderUsecase, cfg.Server.JWTSecret)
