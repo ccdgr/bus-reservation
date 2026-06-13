@@ -8,10 +8,30 @@ import {
   Divider,
   Alert,
   Snackbar,
-  IconButton
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  CircularProgress
 } from '@mui/material';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowBack, DirectionsBus, LocationOn, AccessTime, EventSeat } from '@mui/icons-material';
+import { 
+  ArrowBack, 
+  DirectionsBus, 
+  LocationOn, 
+  AccessTime, 
+  EventSeat,
+  CreditCard,
+  ChatBubble,
+  AccountBalanceWallet,
+  CheckCircleOutlined
+} from '@mui/icons-material';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
 
@@ -29,10 +49,17 @@ const BusDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
+  
   const [bus, setBus] = useState<Bus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState({ type: '', msg: '' });
+  const [status, setStatus] = useState({ type: 'info', msg: '' });
   const [open, setOpen] = useState(false);
+
+  // Payment states
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [paySuccessOpen, setPaySuccessOpen] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState('');
 
   useEffect(() => {
     client.get(`/buses/${id}`)
@@ -40,20 +67,46 @@ const BusDetail: React.FC = () => {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleReserve = async () => {
+  const handleOpenPayment = () => {
     if (!isAuthenticated) {
       navigate('/login');
       return;
     }
+    setPayDialogOpen(true);
+  };
 
+  const handleFinalPay = async () => {
+    if (!selectedMethod) {
+      setStatus({ type: 'error', msg: '请选择支付方式' });
+      setOpen(true);
+      return;
+    }
+
+    setProcessing(true);
     try {
-      await client.post('/orders', { bus_id: Number(id) });
-      setStatus({ type: 'success', msg: '预定成功！请前往订单查看结果' });
-      setOpen(true);
-      setTimeout(() => navigate('/orders'), 1500);
+      // 1. 创建订单 (Status 0)
+      const orderRes = await client.post('/orders', { bus_id: Number(id) });
+      const orderID = orderRes.data.id;
+
+      // 2. 模拟支付延迟
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // 3. 调用支付接口 (Status 1)
+      if (orderID) {
+        await client.post(`/orders/${orderID}/pay`);
+      }
+
+      setPayDialogOpen(false);
+      setPaySuccessOpen(true);
+      
+      // 4. 跳转
+      setTimeout(() => navigate('/orders'), 2000);
     } catch (err: any) {
-      setStatus({ type: 'error', msg: err.response?.data?.error || '预定失败' });
+      console.error('Reservation failed:', err);
+      setStatus({ type: 'error', msg: err.response?.data?.error || '预定或支付失败' });
       setOpen(true);
+    } finally {
+      setProcessing(false);
     }
   };
 
@@ -128,12 +181,51 @@ const BusDetail: React.FC = () => {
           fullWidth 
           size="large" 
           disabled={bus.left_seat <= 0}
-          onClick={handleReserve}
+          onClick={handleOpenPayment}
           sx={{ py: 1.5, fontSize: '1.1rem', boxShadow: 3, borderRadius: 3 }}
         >
           {bus.left_seat > 0 ? '立即预定' : '已售罄'}
         </Button>
       </Box>
+
+      {/* Payment Selection Dialog */}
+      <Dialog open={payDialogOpen} onClose={() => !processing && setPayDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ fontWeight: 'bold', textAlign: 'center' }}>选择支付方式</DialogTitle>
+        <DialogContent sx={{ p: 0 }}>
+          <List sx={{ pt: 0 }}>
+            {[
+              { id: 'card', name: '一卡通支付', icon: <CreditCard sx={{ color: '#ff9800' }} /> },
+              { id: 'wechat', name: '微信支付', icon: <ChatBubble sx={{ color: '#4caf50' }} /> },
+              { id: 'alipay', name: '支付宝支付', icon: <AccountBalanceWallet sx={{ color: '#2196f3' }} /> }
+            ].map((method) => (
+              <ListItem key={method.id} disablePadding>
+                <ListItemButton 
+                  selected={selectedMethod === method.id}
+                  onClick={() => setSelectedMethod(method.id)}
+                  disabled={processing}
+                >
+                  <ListItemIcon>{method.icon}</ListItemIcon>
+                  <ListItemText primary={method.name} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button fullWidth variant="contained" size="large" onClick={handleFinalPay} disabled={processing || !selectedMethod}>
+            {processing ? <CircularProgress size={24} color="inherit" /> : '立即支付'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Success Simulation Popup */}
+      <Dialog open={paySuccessOpen}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 4, px: 4, textAlign: 'center' }}>
+          <CheckCircleOutlined sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
+          <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 1 }}>支付成功</Typography>
+          <Typography color="text.secondary">正在为您出票，请稍后...</Typography>
+        </Box>
+      </Dialog>
 
       <Snackbar open={open} autoHideDuration={3000} onClose={() => setOpen(false)}>
         <Alert severity={status.type as any} sx={{ width: '100%' }}>
