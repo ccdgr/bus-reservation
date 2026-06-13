@@ -42,7 +42,7 @@ func main() {
 		cfg, _ = config.LoadConfig("config.yaml.example")
 	}
 	if cfg.Server.JWTSecret == "" {
-		cfg.Server.JWTSecret = "nwpu-secret-key"
+		cfg.Server.JWTSecret = "bus-reservation-secret-key"
 	}
 
 	// 2. Init Middleware Connections

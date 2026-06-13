@@ -34,6 +34,6 @@ CREATE TABLE IF NOT EXISTS `orders` (
 
 -- Initial data for testing
 INSERT INTO `buses` (`number`, `origin`, `dest`, `start_time`, `total_seat`, `left_seat`, `created_at`, `updated_at`) 
-VALUES ('NWPU-001', '长安校区', '友谊校区', '2026-06-15 08:00:00', 50, 50, NOW(), NOW());
+VALUES ('BUS-001', '校区 A', '校区 B', '2026-06-15 08:00:00', 50, 50, NOW(), NOW());
 INSERT INTO `buses` (`number`, `origin`, `dest`, `start_time`, `total_seat`, `left_seat`, `created_at`, `updated_at`) 
-VALUES ('NWPU-002', '友谊校区', '长安校区', '2026-06-15 17:30:00', 50, 50, NOW(), NOW());
+VALUES ('BUS-002', '校区 B', '校区 A', '2026-06-15 17:30:00', 50, 50, NOW(), NOW());

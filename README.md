@@ -1,4 +1,4 @@
-# 西工大校车预定平台 (NWPU Bus Reservation Platform)
+# 校车预定平台 (Bus Reservation Platform)
 
 本项目是一个基于 Go 语言开发的高性能校车预约平台，旨在解决学生及教职工的日常通勤预约需求。系统采用了 **简洁架构 (Clean Architecture)** 设计，确保代码的可维护性与可扩展性，同时针对高并发场景进行了专项优化。
 
