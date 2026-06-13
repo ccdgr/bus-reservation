@@ -13,6 +13,7 @@ import Orders from './pages/Orders';
 import Profile from './pages/Profile';
 import BusDetail from './pages/BusDetail';
 import SearchResults from './pages/SearchResults';
+import ConfirmOrder from './pages/ConfirmOrder';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -33,6 +34,14 @@ const App: React.FC = () => {
               <Route index element={<Home />} />
               <Route path="search-results" element={<SearchResults />} />
               <Route path="bus/:id" element={<BusDetail />} />
+              <Route 
+                path="confirm-order/:busId" 
+                element={
+                  <PrivateRoute>
+                    <ConfirmOrder />
+                  </PrivateRoute>
+                } 
+              />
               <Route 
                 path="orders" 
                 element={
