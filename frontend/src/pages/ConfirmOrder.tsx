@@ -160,7 +160,7 @@ const ConfirmOrder: React.FC = () => {
             <Typography variant="subtitle1" color="text.secondary">乘车费用</Typography>
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', color: 'error.main' }}>
               <Typography variant="body2">¥</Typography>
-              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>0.01</Typography>
+              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>5.00</Typography>
             </Stack>
           </Box>
         </Stack>
@@ -189,7 +189,7 @@ const ConfirmOrder: React.FC = () => {
       >
         <Box>
           <Typography variant="caption" color="text.secondary">总计</Typography>
-          <Typography variant="h5" color="error.main" sx={{ fontWeight: 'bold' }}>¥ 0.01</Typography>
+          <Typography variant="h5" color="error.main" sx={{ fontWeight: 'bold' }}>¥ 5.00</Typography>
         </Box>
         <Button 
           variant="contained" 
@@ -251,7 +251,7 @@ const ConfirmOrder: React.FC = () => {
             disabled={processing || selectedMethod !== 'alipay'}
             sx={{ mt: 3, py: 1.5, borderRadius: 2, fontWeight: 'bold', bgcolor: '#1677FF' }}
           >
-            {processing ? <CircularProgress size={24} color="inherit" /> : '立即支付 ¥ 0.01'}
+            {processing ? <CircularProgress size={24} color="inherit" /> : '立即支付 ¥ 5.00'}
           </Button>
         </Box>
       </Drawer>

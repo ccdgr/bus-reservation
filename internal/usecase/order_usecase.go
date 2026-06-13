@@ -148,7 +148,7 @@ func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) (string, error) 
 	p.ReturnURL = u.returnURL
 	p.Subject = fmt.Sprintf("Bus Reservation Order #%d", orderID)
 	p.OutTradeNo = strconv.FormatUint(orderID, 10)
-	p.TotalAmount = "0.01" // Simulated amount
+	p.TotalAmount = "5.00" // Fixed 5 RMB amount
 	p.ProductCode = "FAST_INSTANT_TRADE_PAY"
 
 	url, err := u.aliClient.TradePagePay(p)
