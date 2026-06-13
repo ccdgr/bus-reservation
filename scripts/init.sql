@@ -37,3 +37,5 @@ INSERT INTO `buses` (`number`, `origin`, `dest`, `start_time`, `total_seat`, `le
 VALUES ('BUS-001', '校区 A', '校区 B', '2026-06-15 08:00:00', 50, 50, NOW(), NOW());
 INSERT INTO `buses` (`number`, `origin`, `dest`, `start_time`, `total_seat`, `left_seat`, `created_at`, `updated_at`) 
 VALUES ('BUS-002', '校区 B', '校区 A', '2026-06-15 17:30:00', 50, 50, NOW(), NOW());
+INSERT INTO `buses` (`number`, `origin`, `dest`, `start_time`, `total_seat`, `left_seat`, `created_at`, `updated_at`) 
+VALUES ('BUS-003', '校区 A', '高铁站', '2026-06-15 09:00:00', 50, 50, NOW(), NOW());
