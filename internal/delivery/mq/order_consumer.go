@@ -55,18 +55,7 @@ func (c *OrderConsumer) Start(ctx context.Context) error {
 		"x-dead-letter-routing-key": "cancel",
 		"x-message-ttl":             int32(15 * 60 * 1000), // 15 分钟
 	}
-	qDelay, err := ch.QueueDeclare("order_delay", true, false, false, false, args)
-	if err != nil {
-		return err
-	}
-
-	// 2. 声明普通入库队列
-	qJobs, err := ch.QueueDeclare("order_jobs", true, false, false, false, nil)
-	if err != nil {
-		return err
-	}
-
-	msgs, err := ch.Consume(qJobs.Name, "", false, false, false, false, nil)
+	_, err = ch.QueueDeclare("order_delay", true, false, false, false, args)
 	if err != nil {
 		return err
 	}
@@ -76,47 +65,7 @@ func (c *OrderConsumer) Start(ctx context.Context) error {
 		return err
 	}
 
-	// 协程 A: 处理订单入库并发送延时取消消息
-	go func() {
-		for d := range msgs {
-			var msg OrderMessage
-			if err := json.Unmarshal(d.Body, &msg); err != nil {
-				d.Nack(false, false)
-				continue
-			}
-
-			order := &domain.Order{
-				UserID: msg.UserID,
-				BusID:  msg.BusID,
-				Status: domain.StatusPendingPayment,
-			}
-			if err := c.orderRepo.Create(ctx, order); err != nil {
-				slog.Error("failed to create order in db", "error", err)
-				d.Nack(false, true)
-				continue
-			}
-
-			if err := c.busRepo.UpdateSeat(ctx, msg.BusID, -1); err != nil {
-				slog.Error("failed to update bus seat in db", "error", err)
-			}
-
-			delayMsg := OrderMessage{
-				OrderID: order.ID,
-				BusID:   order.BusID,
-			}
-			delayBody, _ := json.Marshal(delayMsg)
-			ch.PublishWithContext(ctx, "", qDelay.Name, false, false, amqp.Publishing{
-				ContentType:  "application/json",
-				Body:         delayBody,
-				DeliveryMode: amqp.Persistent,
-			})
-
-			slog.Info("order created and delay task scheduled", "order_id", order.ID)
-			d.Ack(false)
-		}
-	}()
-
-	// 协程 B: 处理过期订单取消
+	// 协程: 处理过期订单取消
 	go func() {
 		for d := range cancelMsgs {
 			var msg OrderMessage

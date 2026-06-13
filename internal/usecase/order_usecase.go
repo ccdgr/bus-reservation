@@ -62,35 +62,49 @@ func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domai
 		return nil, fmt.Errorf("no seats available")
 	}
 
-	msg := OrderMessage{
+	// 同步创建订单以获取 ID
+	order := &domain.Order{
 		UserID: userID,
 		BusID:  busID,
+		Status: domain.StatusPendingPayment,
 	}
-	body, _ := json.Marshal(msg)
-
-	err = u.mqChannel.PublishWithContext(ctx,
-		"",
-		"order_jobs",
-		true,
-		false,
-		amqp.Publishing{
-			ContentType:  "application/json",
-			Body:         body,
-			DeliveryMode: amqp.Persistent,
-		})
-
-	if err != nil {
-		slog.Error("failed to publish order message", "error", err)
+	if err := u.orderRepo.Create(ctx, order); err != nil {
+		slog.Error("failed to create order in db", "error", err)
 		u.redisRepo.IncrSeat(ctx, busID)
 		return nil, err
 	}
 
-	return &domain.Order{
-		UserID: userID,
-		BusID:  busID,
-		Status: domain.StatusPendingPayment,
-		Bus:    bus,
-	}, nil
+	// 异步更新物理库存
+	go func() {
+		if err := u.busRepo.UpdateSeat(context.Background(), busID, -1); err != nil {
+			slog.Error("failed to update bus seat in db", "error", err)
+		}
+	}()
+
+	// 发送延时取消消息
+	delayMsg := OrderMessage{
+		OrderID: order.ID,
+		BusID:   order.BusID,
+	}
+	delayBody, _ := json.Marshal(delayMsg)
+	err = u.mqChannel.PublishWithContext(ctx,
+		"",
+		"order_delay",
+		true,
+		false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         delayBody,
+			DeliveryMode: amqp.Persistent,
+		})
+
+	if err != nil {
+		slog.Error("failed to publish delay cancel message", "error", err)
+		// 不直接失败，因为订单已创建，只是可能无法自动超时取消
+	}
+
+	order.Bus = bus
+	return order, nil
 }
 
 func (u *orderUsecase) ListByUserID(ctx context.Context, userID uint64) ([]*domain.Order, error) {
