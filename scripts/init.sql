@@ -1,4 +1,10 @@
+-- Ensure the session uses utf8mb4
 SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+
+-- Explicitly set the database charset if it exists
+USE `bus_reservation`;
+ALTER DATABASE `bus_reservation` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `users` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -8,7 +14,7 @@ CREATE TABLE IF NOT EXISTS `users` (
     `user_type` TINYINT NOT NULL DEFAULT 0 COMMENT '0:Student, 1:Staff',
     `created_at` DATETIME(3) NULL,
     `updated_at` DATETIME(3) NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `buses` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -21,7 +27,7 @@ CREATE TABLE IF NOT EXISTS `buses` (
     `created_at` DATETIME(3) NULL,
     `updated_at` DATETIME(3) NULL,
     INDEX `idx_start_time` (`start_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `orders` (
     `id` BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -32,7 +38,7 @@ CREATE TABLE IF NOT EXISTS `orders` (
     `updated_at` DATETIME(3) NULL,
     INDEX `idx_user_id` (`user_id`),
     INDEX `idx_bus_id` (`bus_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Initial data for testing (Date: 2026-06-15)
 -- Route 1: 校区 A -> 校区 B
