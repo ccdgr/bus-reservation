@@ -5,8 +5,7 @@ import {
   CardContent, 
   Typography, 
   Button, 
-  Skeleton,
-  Stack,
+  Stack, 
   Chip,
   TextField,
   MenuItem,
@@ -16,24 +15,12 @@ import {
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import { 
-  DirectionsBus, 
-  EventSeat, 
   Search, 
   ChevronRight, 
   AccessTime,
   Person
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
-
-interface Bus {
-  id: number;
-  number: string;
-  origin: string;
-  dest: string;
-  start_time: string;
-  total_seat: number;
-  left_seat: number;
-}
 
 interface Order {
   id: number;
@@ -43,26 +30,15 @@ interface Order {
 }
 
 const Home: React.FC = () => {
-  const [buses, setBuses] = useState<Bus[]>([]);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [origin, setOrigin] = useState('');
-  const [dest, setDest] = useState('');
+  const [origin, setOrigin] = useState('校区 A');
+  const [dest, setDest] = useState('校区 B');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
-  const fetchBuses = () => {
-    setLoading(true);
-    client.get('/buses', {
-      params: { origin, dest, date }
-    })
-      .then(res => {
-        setBuses(res.data);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+  const handleSearch = () => {
+    navigate(`/search-results?origin=${encodeURIComponent(origin)}&dest=${encodeURIComponent(dest)}&date=${date}`);
   };
 
   const fetchRecentOrders = () => {
@@ -75,7 +51,6 @@ const Home: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchBuses();
     fetchRecentOrders();
   }, [isAuthenticated]);
 
@@ -114,9 +89,8 @@ const Home: React.FC = () => {
                 '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' }
               }}
             >
-              <MenuItem value="">全部</MenuItem>
               <MenuItem value="校区 A">校区 A</MenuItem>
-              <MenuItem value="校校区 B">校区 B</MenuItem>
+              <MenuItem value="校区 B">校区 B</MenuItem>
               <MenuItem value="高铁站">高铁站</MenuItem>
             </TextField>
             <TextField
@@ -133,7 +107,6 @@ const Home: React.FC = () => {
                 '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' }
               }}
             >
-              <MenuItem value="">全部</MenuItem>
               <MenuItem value="校区 A">校区 A</MenuItem>
               <MenuItem value="校区 B">校区 B</MenuItem>
               <MenuItem value="高铁站">高铁站</MenuItem>
@@ -159,7 +132,7 @@ const Home: React.FC = () => {
             variant="contained" 
             size="large"
             startIcon={<Search />} 
-            onClick={fetchBuses}
+            onClick={handleSearch}
             fullWidth
             sx={{ 
               bgcolor: 'white', 
@@ -216,61 +189,6 @@ const Home: React.FC = () => {
             </Stack>
           )}
         </Box>
-      )}
-
-      <Typography variant="h6" sx={{ mb: 2, fontWeight: 'bold' }}>
-        可用班次
-      </Typography>
-
-      {loading ? (
-        <Stack spacing={2}>
-          {[1, 2, 3].map(i => (
-            <Skeleton key={i} variant="rectangular" height={100} sx={{ borderRadius: 3 }} />
-          ))}
-        </Stack>
-      ) : (
-        <Stack spacing={2}>
-          {buses.length === 0 ? (
-            <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
-              未找到相关班次
-            </Typography>
-          ) : (
-            buses.map(bus => (
-              <Card key={bus.id} onClick={() => navigate(`/bus/${bus.id}`)} sx={{ cursor: 'pointer', borderRadius: 3 }}>
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Box sx={{ flexGrow: 1 }}>
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                        <DirectionsBus color="primary" />
-                        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                          {bus.number}
-                        </Typography>
-                      </Stack>
-                      <Typography color="text.secondary">
-                        {bus.origin} ➔ {bus.dest}
-                      </Typography>
-                      <Typography variant="body2" sx={{ mt: 0.5 }}>
-                        时间: {new Date(bus.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ textAlign: 'right', ml: 2 }}>
-                      <Chip 
-                        label={`余 ${bus.left_seat}`} 
-                        color={bus.left_seat > 0 ? 'success' : 'error'}
-                        size="small"
-                        icon={<EventSeat sx={{ fontSize: 16 }} />}
-                        sx={{ mb: 1 }}
-                      />
-                      <Button variant="outlined" size="small" fullWidth>
-                        详情
-                      </Button>
-                    </Box>
-                  </Box>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </Stack>
       )}
     </Box>
   );

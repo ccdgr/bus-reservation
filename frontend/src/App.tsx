@@ -5,13 +5,14 @@ import theme from './theme/theme';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 
-// Pages (to be implemented)
+// Pages
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Orders from './pages/Orders';
 import Profile from './pages/Profile';
 import BusDetail from './pages/BusDetail';
+import SearchResults from './pages/SearchResults';
 
 const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -30,6 +31,7 @@ const App: React.FC = () => {
             
             <Route path="/" element={<Layout />}>
               <Route index element={<Home />} />
+              <Route path="search-results" element={<SearchResults />} />
               <Route path="bus/:id" element={<BusDetail />} />
               <Route 
                 path="orders" 
