@@ -20,7 +20,7 @@ func (r *mysqlOrderRepository) Create(ctx context.Context, order *domain.Order) 
 
 func (r *mysqlOrderRepository) GetByID(ctx context.Context, id uint64) (*domain.Order, error) {
 	var order domain.Order
-	if err := r.db.WithContext(ctx).First(&order, id).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Bus").First(&order, id).Error; err != nil {
 		return nil, err
 	}
 	return &order, nil
@@ -32,7 +32,7 @@ func (r *mysqlOrderRepository) UpdateStatus(ctx context.Context, orderID uint64,
 
 func (r *mysqlOrderRepository) ListByUserID(ctx context.Context, userID uint64) ([]*domain.Order, error) {
 	var orders []*domain.Order
-	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&orders).Error; err != nil {
+	if err := r.db.WithContext(ctx).Preload("Bus").Where("user_id = ?", userID).Order("created_at DESC").Find(&orders).Error; err != nil {
 		return nil, err
 	}
 	return orders, nil

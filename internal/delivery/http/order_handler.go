@@ -18,6 +18,8 @@ func NewOrderHandler(r *gin.RouterGroup, usecase domain.OrderUsecase, authMiddle
 	r.POST("", handler.CreateOrder)
 	r.GET("", handler.ListUserOrders)
 	r.POST("/:id/cancel", handler.CancelOrder)
+	r.POST("/:id/pay", handler.PayOrder)
+	r.POST("/:id/verify", handler.VerifyOrder)
 }
 
 type createOrderRequest struct {
@@ -66,4 +68,38 @@ func (h *OrderHandler) CancelOrder(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "order cancelled"})
+}
+
+func (h *OrderHandler) PayOrder(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+
+	err = h.usecase.Pay(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "payment successful"})
+}
+
+func (h *OrderHandler) VerifyOrder(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+
+	err = h.usecase.Verify(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "verification successful"})
 }

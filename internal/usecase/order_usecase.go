@@ -13,7 +13,7 @@ import (
 type orderUsecase struct {
 	orderRepo domain.OrderRepository
 	busRepo   domain.BusRepository
-	redisRepo domain.BusRepository // Special implementation for DecrSeat
+	redisRepo domain.BusRepository
 	mqChannel *amqp.Channel
 }
 
@@ -32,6 +32,12 @@ type OrderMessage struct {
 }
 
 func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domain.Order, error) {
+	// 校验班次是否存在
+	bus, err := u.busRepo.GetByID(ctx, busID)
+	if err != nil {
+		return nil, fmt.Errorf("bus not found")
+	}
+
 	// 1. 原子扣减 Redis 库存
 	ok, err := u.redisRepo.DecrSeat(ctx, busID)
 	if err != nil {
@@ -62,22 +68,32 @@ func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domai
 
 	if err != nil {
 		slog.Error("failed to publish order message", "error", err)
-		// 回滚 Redis 库存
 		u.redisRepo.IncrSeat(ctx, busID)
 		return nil, err
 	}
 
-	// 3. 返回一个预备订单（实际入库由消费者完成，这里可以返回一个 ID 生成器生成的 ID 或者占位符）
-	// 为简化，我们这里只返回一个带有关键信息的结构体，前端可以轮询查询结果
 	return &domain.Order{
 		UserID: userID,
 		BusID:  busID,
-		Status: 0, // Pending
+		Status: domain.StatusPendingPayment,
+		Bus:    bus,
 	}, nil
 }
 
 func (u *orderUsecase) ListByUserID(ctx context.Context, userID uint64) ([]*domain.Order, error) {
-	return u.orderRepo.ListByUserID(ctx, userID)
+	orders, err := u.orderRepo.ListByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 逻辑上修正过期状态（如果还未支付或待核验但发车时间已过）
+	for _, o := range orders {
+		if o.Bus != nil {
+			o.CheckAndFixStatus(o.Bus.StartTime)
+		}
+	}
+
+	return orders, nil
 }
 
 func (u *orderUsecase) Cancel(ctx context.Context, orderID uint64) error {
@@ -85,16 +101,44 @@ func (u *orderUsecase) Cancel(ctx context.Context, orderID uint64) error {
 	if err != nil {
 		return err
 	}
-	if order.Status != 0 {
-		return fmt.Errorf("order cannot be cancelled")
+
+	if !domain.CanTransition(order.Status, domain.StatusCancelled) {
+		return fmt.Errorf("current status %s cannot be cancelled", domain.GetStatusName(order.Status))
 	}
 
-	// 更新状态为已取消
-	err = u.orderRepo.UpdateStatus(ctx, orderID, 2)
+	// 更新状态
+	err = u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusCancelled)
 	if err != nil {
 		return err
 	}
 
-	// 归还库存
+	// 归还 Redis 和 DB 库存
+	u.redisRepo.IncrSeat(ctx, order.BusID)
 	return u.busRepo.UpdateSeat(ctx, order.BusID, 1)
+}
+
+func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) error {
+	order, err := u.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+
+	if !domain.CanTransition(order.Status, domain.StatusPendingVerification) {
+		return fmt.Errorf("current status %s cannot be paid", domain.GetStatusName(order.Status))
+	}
+
+	return u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusPendingVerification)
+}
+
+func (u *orderUsecase) Verify(ctx context.Context, orderID uint64) error {
+	order, err := u.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+
+	if !domain.CanTransition(order.Status, domain.StatusVerified) {
+		return fmt.Errorf("current status %s cannot be verified", domain.GetStatusName(order.Status))
+	}
+
+	return u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusVerified)
 }

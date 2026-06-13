@@ -15,14 +15,20 @@ import {
   Tab
 } from '@mui/material';
 import client from '../api/client';
-import { ShoppingBag, AccessTime, Cancel, ArrowBack } from '@mui/icons-material';
+import { ShoppingBag, AccessTime, Cancel, ArrowBack, Payments, FactCheck } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 interface Order {
   id: number;
   bus_id: number;
-  status: number; // 0: Pending, 1: Paid, 2: Cancelled
+  status: number;
   created_at: string;
+  bus?: {
+    number: string;
+    origin: string;
+    dest: string;
+    start_time: string;
+  };
 }
 
 const Orders: React.FC = () => {
@@ -31,7 +37,7 @@ const Orders: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState('');
-  const [tabValue, setTabValue] = useState(0); // 0: All, 1: Pending, 2: Success, 3: Cancelled
+  const [tabValue, setTabValue] = useState(0); 
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -52,32 +58,32 @@ const Orders: React.FC = () => {
   const filterOrders = () => {
     if (tabValue === 0) {
       setFilteredOrders(orders);
-    } else if (tabValue === 1) {
-      setFilteredOrders(orders.filter(o => o.status === 0));
-    } else if (tabValue === 2) {
-      setFilteredOrders(orders.filter(o => o.status === 1));
-    } else if (tabValue === 3) {
-      setFilteredOrders(orders.filter(o => o.status === 2));
+    } else {
+      const statusMap = [ -1, 0, 1, 2, 3, 4 ];
+      const targetStatus = statusMap[tabValue];
+      setFilteredOrders(orders.filter(o => o.status === targetStatus));
     }
   };
 
-  const handleCancel = async (id: number) => {
+  const handleAction = async (id: number, action: 'cancel' | 'pay' | 'verify') => {
     try {
-      await client.post(`/orders/${id}/cancel`);
-      setMsg('订单已取消');
+      await client.post(`/orders/${id}/${action}`);
+      setMsg(`操作成功`);
       setOpen(true);
       fetchOrders();
     } catch (err: any) {
-      setMsg(err.response?.data?.error || '取消失败');
+      setMsg(err.response?.data?.error || '操作失败');
       setOpen(true);
     }
   };
 
   const getStatusChip = (status: number) => {
     switch (status) {
-      case 0: return <Chip label="处理中" size="small" color="warning" />;
-      case 1: return <Chip label="预定成功" size="small" color="success" />;
-      case 2: return <Chip label="已取消" size="small" color="default" />;
+      case 0: return <Chip label="待支付" size="small" color="warning" variant="outlined" />;
+      case 1: return <Chip label="待核验" size="small" color="info" variant="outlined" />;
+      case 2: return <Chip label="已取消" size="small" color="default" variant="outlined" />;
+      case 3: return <Chip label="已过期" size="small" color="error" variant="outlined" />;
+      case 4: return <Chip label="已核验" size="small" color="success" variant="outlined" />;
       default: return <Chip label="未知" size="small" />;
     }
   };
@@ -96,17 +102,20 @@ const Orders: React.FC = () => {
       <Tabs 
         value={tabValue} 
         onChange={(_, v) => setTabValue(v)} 
-        variant="fullWidth" 
+        variant="scrollable" 
+        scrollButtons="auto"
         sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
       >
         <Tab label="全部" />
-        <Tab label="处理中" />
-        <Tab label="成功" />
+        <Tab label="待支付" />
+        <Tab label="待核验" />
         <Tab label="已取消" />
+        <Tab label="已过期" />
+        <Tab label="已核验" />
       </Tabs>
       
       {filteredOrders.length === 0 && (
-        <Alert severity="info" sx={{ borderRadius: 3 }}>暂无订单信息</Alert>
+        <Alert severity="info" sx={{ borderRadius: 3 }}>暂无相关订单</Alert>
       )}
 
       <Stack spacing={2}>
@@ -125,32 +134,63 @@ const Orders: React.FC = () => {
               
               <Divider sx={{ my: 1.5 }} />
               
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box>
-                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-                    班次 ID: {order.bus_id}
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                  {order.bus ? `${order.bus.number} (${order.bus.origin} ➔ ${order.bus.dest})` : `班次 ID: ${order.bus_id}`}
+                </Typography>
+                <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 0.5 }}>
+                  <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                  <Typography variant="caption" color="text.secondary">
+                    下单时间: {new Date(order.created_at).toLocaleString()}
                   </Typography>
-                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 0.5 }}>
-                    <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
-                    <Typography variant="caption" color="text.secondary">
-                      {new Date(order.created_at).toLocaleString()}
-                    </Typography>
-                  </Stack>
-                </Box>
-                
-                {order.status === 0 && (
-                  <Button 
-                    variant="outlined" 
-                    color="error" 
-                    size="small" 
-                    startIcon={<Cancel />}
-                    onClick={() => handleCancel(order.id)}
-                    sx={{ borderRadius: 2 }}
-                  >
-                    取消
-                  </Button>
-                )}
+                </Stack>
               </Box>
+
+              <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                {order.status === 0 && (
+                  <>
+                    <Button 
+                      variant="outlined" 
+                      color="error" 
+                      size="small" 
+                      startIcon={<Cancel />}
+                      onClick={() => handleAction(order.id, 'cancel')}
+                    >
+                      取消
+                    </Button>
+                    <Button 
+                      variant="contained" 
+                      color="primary" 
+                      size="small" 
+                      startIcon={<Payments />}
+                      onClick={() => handleAction(order.id, 'pay')}
+                    >
+                      立即支付
+                    </Button>
+                  </>
+                )}
+                {order.status === 1 && (
+                  <>
+                    <Button 
+                      variant="outlined" 
+                      color="error" 
+                      size="small" 
+                      onClick={() => handleAction(order.id, 'cancel')}
+                    >
+                      退票
+                    </Button>
+                    <Button 
+                      variant="contained" 
+                      color="success" 
+                      size="small" 
+                      startIcon={<FactCheck />}
+                      onClick={() => handleAction(order.id, 'verify')}
+                    >
+                      核验上车
+                    </Button>
+                  </>
+                )}
+              </Stack>
             </CardContent>
           </Card>
         ))}
