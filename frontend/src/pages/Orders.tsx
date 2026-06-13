@@ -9,10 +9,14 @@ import {
   Button,
   Divider,
   Alert,
-  Snackbar
+  Snackbar,
+  IconButton,
+  Tabs,
+  Tab
 } from '@mui/material';
 import client from '../api/client';
-import { ShoppingBag, AccessTime, Cancel } from '@mui/icons-material';
+import { ShoppingBag, AccessTime, Cancel, ArrowBack } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 
 interface Order {
   id: number;
@@ -23,18 +27,38 @@ interface Order {
 
 const Orders: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState('');
+  const [tabValue, setTabValue] = useState(0); // 0: All, 1: Pending, 2: Success, 3: Cancelled
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchOrders();
   }, []);
 
+  useEffect(() => {
+    filterOrders();
+  }, [tabValue, orders]);
+
   const fetchOrders = () => {
+    setLoading(true);
     client.get('/orders')
       .then(res => setOrders(res.data))
       .finally(() => setLoading(false));
+  };
+
+  const filterOrders = () => {
+    if (tabValue === 0) {
+      setFilteredOrders(orders);
+    } else if (tabValue === 1) {
+      setFilteredOrders(orders.filter(o => o.status === 0));
+    } else if (tabValue === 2) {
+      setFilteredOrders(orders.filter(o => o.status === 1));
+    } else if (tabValue === 3) {
+      setFilteredOrders(orders.filter(o => o.status === 2));
+    }
   };
 
   const handleCancel = async (id: number) => {
@@ -62,54 +86,71 @@ const Orders: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ mb: 2, fontWeight: 'bold' }}>
-        我的订单
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+        <IconButton onClick={() => navigate('/')} sx={{ mr: 1 }}>
+          <ArrowBack />
+        </IconButton>
+        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>我的订单</Typography>
+      </Box>
+
+      <Tabs 
+        value={tabValue} 
+        onChange={(_, v) => setTabValue(v)} 
+        variant="fullWidth" 
+        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab label="全部" />
+        <Tab label="处理中" />
+        <Tab label="成功" />
+        <Tab label="已取消" />
+      </Tabs>
       
-      {orders.length === 0 && (
-        <Alert severity="info">暂无订单信息</Alert>
+      {filteredOrders.length === 0 && (
+        <Alert severity="info" sx={{ borderRadius: 3 }}>暂无订单信息</Alert>
       )}
 
       <Stack spacing={2}>
-        {orders.map(order => (
-          <Card key={order.id}>
+        {filteredOrders.map(order => (
+          <Card key={order.id} sx={{ borderRadius: 3 }}>
             <CardContent>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                  <ShoppingBag color="action" fontSize="small" />
-                  <Typography variant="body2" color="text.secondary">
+                  <ShoppingBag color="action" sx={{ fontSize: 20 }} />
+                  <Typography variant="subtitle2" color="text.secondary">
                     订单号: {order.id}
                   </Typography>
                 </Stack>
                 {getStatusChip(order.status)}
               </Stack>
               
-              <Divider sx={{ my: 1 }} />
+              <Divider sx={{ my: 1.5 }} />
               
-              <Typography variant="body1" sx={{ mt: 1 }}>
-                班次 ID: {order.bus_id}
-              </Typography>
-              
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mt: 1 }}>
-                <AccessTime fontSize="inherit" color="disabled" />
-                <Typography variant="caption" color="text.secondary">
-                  预定时间: {new Date(order.created_at).toLocaleString()}
-                </Typography>
-              </Stack>
-
-              {order.status === 0 && (
-                <Box sx={{ mt: 2, textAlign: 'right' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                    班次 ID: {order.bus_id}
+                  </Typography>
+                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', mt: 0.5 }}>
+                    <AccessTime sx={{ fontSize: 14, color: 'text.secondary' }} />
+                    <Typography variant="caption" color="text.secondary">
+                      {new Date(order.created_at).toLocaleString()}
+                    </Typography>
+                  </Stack>
+                </Box>
+                
+                {order.status === 0 && (
                   <Button 
                     variant="outlined" 
                     color="error" 
                     size="small" 
                     startIcon={<Cancel />}
                     onClick={() => handleCancel(order.id)}
+                    sx={{ borderRadius: 2 }}
                   >
-                    取消订单
+                    取消
                   </Button>
-                </Box>
-              )}
+                )}
+              </Box>
             </CardContent>
           </Card>
         ))}

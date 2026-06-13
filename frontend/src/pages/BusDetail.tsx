@@ -65,10 +65,10 @@ const BusDetail: React.FC = () => {
         <IconButton onClick={() => navigate(-1)} sx={{ mr: 1 }}>
           <ArrowBack />
         </IconButton>
-        <Typography variant="h6">班次详情</Typography>
+        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>班次详情</Typography>
       </Box>
 
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: 3, mb: 3, borderRadius: 3 }}>
         <Stack spacing={3}>
           <Box>
             <Typography color="text.secondary" variant="caption" sx={{ display: 'block' }}>班次号</Typography>
@@ -80,7 +80,7 @@ const BusDetail: React.FC = () => {
 
           <Divider />
 
-          <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
             <Box>
               <Typography color="text.secondary" variant="caption" sx={{ display: 'block' }}>起点</Typography>
               <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -95,7 +95,7 @@ const BusDetail: React.FC = () => {
                 <LocationOn sx={{ color: 'error.main' }} />
               </Stack>
             </Box>
-          </Stack>
+          </Box>
 
           <Box>
             <Typography color="text.secondary" variant="caption" sx={{ display: 'block' }}>出发时间</Typography>
@@ -117,7 +117,7 @@ const BusDetail: React.FC = () => {
 
       <Box sx={{ 
         position: 'fixed', 
-        bottom: 72, 
+        bottom: 32, 
         left: 0, 
         right: 0, 
         px: 2,
@@ -129,7 +129,7 @@ const BusDetail: React.FC = () => {
           size="large" 
           disabled={bus.left_seat <= 0}
           onClick={handleReserve}
-          sx={{ py: 1.5, fontSize: '1.1rem', boxShadow: 3 }}
+          sx={{ py: 1.5, fontSize: '1.1rem', boxShadow: 3, borderRadius: 3 }}
         >
           {bus.left_seat > 0 ? '立即预定' : '已售罄'}
         </Button>
