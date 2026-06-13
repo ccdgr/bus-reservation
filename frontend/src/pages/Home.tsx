@@ -10,7 +10,9 @@ import {
   TextField,
   MenuItem,
   Paper,
-  IconButton
+  IconButton,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
@@ -30,14 +32,23 @@ interface Order {
 }
 
 const Home: React.FC = () => {
+  const today = new Date().toISOString().split('T')[0];
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [origin, setOrigin] = useState('校区 A');
   const [dest, setDest] = useState('校区 B');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(today);
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
   const handleSearch = () => {
+    if (date < today) {
+      setErrorMsg('不能选择今日之前的日期');
+      setErrorOpen(true);
+      return;
+    }
     navigate(`/search-results?origin=${encodeURIComponent(origin)}&dest=${encodeURIComponent(dest)}&date=${date}`);
   };
 
@@ -105,7 +116,8 @@ const Home: React.FC = () => {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               slotProps={{ 
-                inputLabel: { shrink: true }
+                inputLabel: { shrink: true },
+                htmlInput: { min: today } // Prevent selecting past dates in modern browsers
               }}
             />
           </Stack>
@@ -157,8 +169,8 @@ const Home: React.FC = () => {
                         </Stack>
                       </Box>
                       <Chip 
-                        label={order.status === 0 ? '处理中' : '预定成功'} 
-                        color={order.status === 0 ? 'warning' : 'success'} 
+                        label={order.status === 0 ? '待支付' : '待核验'} 
+                        color={order.status === 0 ? 'warning' : 'info'} 
                         size="small" 
                       />
                     </Box>
@@ -169,6 +181,12 @@ const Home: React.FC = () => {
           )}
         </Box>
       )}
+
+      <Snackbar open={errorOpen} autoHideDuration={3000} onClose={() => setErrorOpen(false)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert severity="error" variant="filled" sx={{ width: '100%' }}>
+          {errorMsg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

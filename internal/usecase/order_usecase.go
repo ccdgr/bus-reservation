@@ -27,18 +27,17 @@ func NewOrderUsecase(orderRepo domain.OrderRepository, busRepo domain.BusReposit
 }
 
 type OrderMessage struct {
-	UserID uint64 `json:"user_id"`
-	BusID  uint64 `json:"bus_id"`
+	UserID  uint64 `json:"user_id"`
+	BusID   uint64 `json:"bus_id"`
+	OrderID uint64 `json:"order_id,omitempty"`
 }
 
 func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domain.Order, error) {
-	// 校验班次是否存在
 	bus, err := u.busRepo.GetByID(ctx, busID)
 	if err != nil {
 		return nil, fmt.Errorf("bus not found")
 	}
 
-	// 1. 原子扣减 Redis 库存
 	ok, err := u.redisRepo.DecrSeat(ctx, busID)
 	if err != nil {
 		slog.Error("failed to decrease redis stock", "bus_id", busID, "error", err)
@@ -48,7 +47,6 @@ func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domai
 		return nil, fmt.Errorf("no seats available")
 	}
 
-	// 2. 发送异步消息到 MQ
 	msg := OrderMessage{
 		UserID: userID,
 		BusID:  busID,
@@ -56,10 +54,10 @@ func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domai
 	body, _ := json.Marshal(msg)
 
 	err = u.mqChannel.PublishWithContext(ctx,
-		"",           // exchange
-		"order_jobs", // routing key (queue name)
-		true,         // mandatory
-		false,        // immediate
+		"",
+		"order_jobs",
+		true,
+		false,
 		amqp.Publishing{
 			ContentType:  "application/json",
 			Body:         body,
@@ -86,7 +84,6 @@ func (u *orderUsecase) ListByUserID(ctx context.Context, userID uint64) ([]*doma
 		return nil, err
 	}
 
-	// 逻辑上修正过期状态（如果还未支付或待核验但发车时间已过）
 	for _, o := range orders {
 		if o.Bus != nil {
 			o.CheckAndFixStatus(o.Bus.StartTime)
@@ -106,13 +103,11 @@ func (u *orderUsecase) Cancel(ctx context.Context, orderID uint64) error {
 		return fmt.Errorf("current status %s cannot be cancelled", domain.GetStatusName(order.Status))
 	}
 
-	// 更新状态
 	err = u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusCancelled)
 	if err != nil {
 		return err
 	}
 
-	// 归还 Redis 和 DB 库存
 	u.redisRepo.IncrSeat(ctx, order.BusID)
 	return u.busRepo.UpdateSeat(ctx, order.BusID, 1)
 }

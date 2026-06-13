@@ -104,7 +104,7 @@ func main() {
 	deliveryHTTP.NewRouter(r, userUsecase, busUsecase, orderUsecase, cfg.Server.JWTSecret)
 
 	// Start MQ Consumer
-	consumer := deliveryMQ.NewOrderConsumer(mqConn, orderRepo, busRepo)
+	consumer := deliveryMQ.NewOrderConsumer(mqConn, orderRepo, busRepo, redisRepo)
 	ctx, cancel := context.WithCancel(context.Background())
 	go consumer.Start(ctx)
 
