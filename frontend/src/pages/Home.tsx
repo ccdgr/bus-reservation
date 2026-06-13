@@ -66,12 +66,13 @@ const Home: React.FC = () => {
         p: 3, 
         mb: 4, 
         borderRadius: 4, 
-        bgcolor: 'primary.main', 
-        color: 'white',
-        boxShadow: '0 8px 24px rgba(25, 118, 210, 0.2)'
+        bgcolor: 'background.paper', 
+        border: '1px solid',
+        borderColor: 'divider',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
       }}>
         <Stack spacing={3}>
-          <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
+          <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
             去哪里？
           </Typography>
           <Stack spacing={2}>
@@ -81,13 +82,6 @@ const Home: React.FC = () => {
               label="出发地"
               value={origin}
               onChange={(e) => setOrigin(e.target.value)}
-              sx={{ 
-                bgcolor: 'rgba(255,255,255,0.1)', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': { color: 'white' },
-                '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.7)' },
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' }
-              }}
             >
               <MenuItem value="校区 A">校区 A</MenuItem>
               <MenuItem value="校区 B">校区 B</MenuItem>
@@ -99,13 +93,6 @@ const Home: React.FC = () => {
               label="目的地"
               value={dest}
               onChange={(e) => setDest(e.target.value)}
-              sx={{ 
-                bgcolor: 'rgba(255,255,255,0.1)', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-root': { color: 'white' },
-                '& .MuiInputLabel-root': { color: 'rgba(255,255,255,0.7)' },
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' }
-              }}
             >
               <MenuItem value="校区 A">校区 A</MenuItem>
               <MenuItem value="校区 B">校区 B</MenuItem>
@@ -118,13 +105,7 @@ const Home: React.FC = () => {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               slotProps={{ 
-                inputLabel: { shrink: true, sx: { color: 'rgba(255,255,255,0.7)' } },
-                htmlInput: { sx: { color: 'white' } }
-              }}
-              sx={{ 
-                bgcolor: 'rgba(255,255,255,0.1)', 
-                borderRadius: 2,
-                '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(255,255,255,0.3)' }
+                inputLabel: { shrink: true }
               }}
             />
           </Stack>
@@ -135,11 +116,9 @@ const Home: React.FC = () => {
             onClick={handleSearch}
             fullWidth
             sx={{ 
-              bgcolor: 'white', 
-              color: 'primary.main',
               fontWeight: 'bold',
               py: 1.5,
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }
+              borderRadius: 2
             }}
           >
             立即查询
