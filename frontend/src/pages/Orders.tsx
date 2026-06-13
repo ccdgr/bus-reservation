@@ -12,10 +12,23 @@ import {
   Snackbar,
   IconButton,
   Tabs,
-  Tab
+  Tab,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import client from '../api/client';
-import { ShoppingBag, AccessTime, Cancel, ArrowBack, Payments, FactCheck } from '@mui/icons-material';
+import { 
+  ShoppingBag, 
+  AccessTime, 
+  Cancel, 
+  ArrowBack, 
+  Payments, 
+  FactCheck,
+  QrCode2,
+  CheckCircleOutlined
+} from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 interface Order {
@@ -39,6 +52,11 @@ const Orders: React.FC = () => {
   const [msg, setMsg] = useState('');
   const [tabValue, setTabValue] = useState(0); 
   const navigate = useNavigate();
+
+  // Verification dialog states
+  const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
+  const [selectedOrderID, setSelectedOrderID] = useState<number | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     fetchOrders();
@@ -74,6 +92,28 @@ const Orders: React.FC = () => {
     } catch (err: any) {
       setMsg(err.response?.data?.error || '操作失败');
       setOpen(true);
+    }
+  };
+
+  const openVerifyDialog = (id: number) => {
+    setSelectedOrderID(id);
+    setVerifyDialogOpen(true);
+  };
+
+  const handleSimulateVerify = async () => {
+    if (!selectedOrderID) return;
+    setVerifying(true);
+    try {
+      await client.post(`/orders/${selectedOrderID}/verify`);
+      setMsg('核验成功，欢迎乘车！');
+      setOpen(true);
+      setVerifyDialogOpen(false);
+      fetchOrders();
+    } catch (err: any) {
+      setMsg(err.response?.data?.error || '核验失败');
+      setOpen(true);
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -184,17 +224,53 @@ const Orders: React.FC = () => {
                       color="success" 
                       size="small" 
                       startIcon={<FactCheck />}
-                      onClick={() => handleAction(order.id, 'verify')}
+                      onClick={() => openVerifyDialog(order.id)}
                     >
                       核验上车
                     </Button>
                   </>
+                )}
+                {order.status === 4 && (
+                  <Chip icon={<CheckCircleOutlined />} label="核验成功" color="success" variant="outlined" size="small" />
                 )}
               </Stack>
             </CardContent>
           </Card>
         ))}
       </Stack>
+
+      {/* Verification Dialog */}
+      <Dialog open={verifyDialogOpen} onClose={() => !verifying && setVerifyDialogOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ textAlign: 'center', fontWeight: 'bold' }}>乘车核验</DialogTitle>
+        <DialogContent sx={{ textAlign: 'center', py: 3 }}>
+          <Box sx={{ 
+            p: 2, 
+            bgcolor: '#f8f9fa', 
+            borderRadius: 4, 
+            display: 'inline-block',
+            border: '2px solid #e9ecef',
+            mb: 2
+          }}>
+            <QrCode2 sx={{ fontSize: 200, color: '#333' }} />
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            请将二维码对准校车扫码器进行核验
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button 
+            fullWidth 
+            variant="contained" 
+            size="large" 
+            onClick={handleSimulateVerify} 
+            disabled={verifying}
+            startIcon={<FactCheck />}
+            sx={{ py: 1.5, fontWeight: 'bold' }}
+          >
+            {verifying ? '核验中...' : '模拟核验成功'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar open={open} autoHideDuration={3000} onClose={() => setOpen(false)}>
         <Alert severity="info" sx={{ width: '100%' }}>
