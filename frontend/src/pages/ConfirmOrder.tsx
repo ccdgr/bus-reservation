@@ -255,7 +255,7 @@ const ConfirmOrder: React.FC = () => {
             disabled={processing || selectedMethod !== 'paypal'}
             sx={{ mt: 3, py: 1.5, borderRadius: 2, fontWeight: 'bold', bgcolor: '#003087', '&:hover': { bgcolor: '#001C66' } }}
           >
-            {processing ? <CircularProgress size={24} color="inherit" /> : '立即支付 $5.00'}
+            {processing ? <CircularProgress size={24} color="inherit" /> : '立即支付 ¥ 5.00'}
           </Button>
         </Box>
       </Drawer>

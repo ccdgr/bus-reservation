@@ -73,7 +73,7 @@ func (p *PayPalClient) CreateOrder(ctx context.Context, params CreateOrderParams
 		"purchase_units": []map[string]interface{}{
 			{
 				"amount": map[string]interface{}{
-					"currency_code": "USD",
+					"currency_code": "CNY",
 					"value":         params.Amount,
 				},
 			},
