@@ -74,7 +74,7 @@ const ConfirmOrder: React.FC = () => {
   }, [busId]);
 
   const handlePay = async () => {
-    if (selectedMethod !== 'paypal') return;
+    if (selectedMethod !== 'paypal' && selectedMethod !== 'alipay') return;
 
     setProcessing(true);
     try {
@@ -84,7 +84,7 @@ const ConfirmOrder: React.FC = () => {
 
       // 2. Call payment API
       if (orderID) {
-        const payRes = await client.post(`/orders/${orderID}/pay`);
+        const payRes = await client.post(`/orders/${orderID}/pay`, { method: selectedMethod });
         if (payRes.data.payment_url) {
           window.location.href = payRes.data.payment_url;
           return;
@@ -233,9 +233,17 @@ const ConfirmOrder: React.FC = () => {
             </ListItem>
             
             <ListItem disablePadding sx={{ mb: 1 }}>
-              <ListItemButton disabled>
-                <ListItemIcon><AccountBalanceWallet sx={{ color: '#ccc', fontSize: 32 }} /></ListItemIcon>
-                <ListItemText primary="支付宝支付" secondary="暂不支持" />
+              <ListItemButton 
+                selected={selectedMethod === 'alipay'}
+                onClick={() => setSelectedMethod('alipay')}
+                sx={{ borderRadius: 2, border: selectedMethod === 'alipay' ? '1px solid #1677FF' : '1px solid transparent' }}
+                disabled={processing}
+              >
+                <ListItemIcon><AccountBalanceWallet sx={{ color: '#1677FF', fontSize: 32 }} /></ListItemIcon>
+                <ListItemText 
+                  primary={<Typography sx={{ fontWeight: 'bold', color: '#1677FF' }}>支付宝支付 (沙箱环境)</Typography>} 
+                  secondary="推荐使用" 
+                />
               </ListItemButton>
             </ListItem>
 
@@ -245,18 +253,19 @@ const ConfirmOrder: React.FC = () => {
                 <ListItemText primary="校园一卡通" secondary="维护中" />
               </ListItemButton>
             </ListItem>
-          </List>
+            </List>
 
-          <Button 
+            <Button 
             fullWidth 
             variant="contained" 
             size="large" 
             onClick={handlePay} 
-            disabled={processing || selectedMethod !== 'paypal'}
-            sx={{ mt: 3, py: 1.5, borderRadius: 2, fontWeight: 'bold', bgcolor: '#003087', '&:hover': { bgcolor: '#001C66' } }}
-          >
-            {processing ? <CircularProgress size={24} color="inherit" /> : '立即支付 ¥ 5.00'}
-          </Button>
+            disabled={processing || (selectedMethod !== 'paypal' && selectedMethod !== 'alipay')}
+            sx={{ mt: 3, py: 1.5, borderRadius: 2, fontWeight: 'bold', bgcolor: selectedMethod === 'paypal' ? '#003087' : '#1677FF', '&:hover': { bgcolor: selectedMethod === 'paypal' ? '#001C66' : '#1677FF' } }}
+            >
+            {processing ? <CircularProgress size={24} color="inherit" /> : '立即支付 ¥5.00'}
+            </Button>
+
         </Box>
       </Drawer>
 

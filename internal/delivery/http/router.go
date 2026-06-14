@@ -3,15 +3,16 @@ package http
 import (
 	"github.com/ccdgr/bus-reservation/internal/domain"
 	"github.com/gin-gonic/gin"
+	"github.com/smartwalle/alipay/v3"
 )
 
-func NewRouter(engine *gin.Engine, userUsecase domain.UserUsecase, busUsecase domain.BusUsecase, orderUsecase domain.OrderUsecase, jwtSecret, frontendCancelURL string) {
+func NewRouter(engine *gin.Engine, userUsecase domain.UserUsecase, busUsecase domain.BusUsecase, orderUsecase domain.OrderUsecase, aliClient *alipay.Client, jwtSecret, frontendCancelURL string) {
 	authMiddleware := AuthMiddleware(jwtSecret)
 
 	// Public routes
 	publicV1 := engine.Group("/api/v1")
 	{
-		RegisterPublicOrderHandler(publicV1.Group("/payments"), orderUsecase, frontendCancelURL)
+		RegisterPublicOrderHandler(publicV1.Group("/payments"), orderUsecase, aliClient, frontendCancelURL)
 	}
 
 	// Protected routes
@@ -24,6 +25,6 @@ func NewRouter(engine *gin.Engine, userUsecase domain.UserUsecase, busUsecase do
 		NewBusHandler(busGroup, busUsecase)
 
 		orderGroup := v1.Group("/orders")
-		NewOrderHandler(orderGroup, orderUsecase, authMiddleware)
+		NewOrderHandler(orderGroup, orderUsecase, aliClient, authMiddleware)
 	}
 }

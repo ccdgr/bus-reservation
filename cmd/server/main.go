@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
+	"github.com/smartwalle/alipay/v3"
 	"gorm.io/gorm"
 
 	"github.com/ccdgr/bus-reservation/pkg/database"
@@ -73,6 +74,18 @@ func main() {
 	}
 	defer ch.Close()
 
+	var aliClient *alipay.Client
+	if cfg.Alipay.AppID != "" && cfg.Alipay.AppID != "your_sandbox_app_id" {
+		aliClient, err = payment.NewAlipayClient(cfg.Alipay.AppID, cfg.Alipay.PrivateKey, cfg.Alipay.AliPublicKey, false)
+		if err != nil {
+			slog.Warn("failed to initialize alipay client, running in mock mode", "error", err)
+		} else {
+			slog.Info("alipay client initialized")
+		}
+	} else {
+		slog.Warn("alipay configuration missing or using defaults, running in mock mode")
+	}
+
 	var paypalClient *payment.PayPalClient
 	if cfg.PayPal.ClientID != "" && cfg.PayPal.ClientID != "your_paypal_client_id" {
 		paypalClient = payment.NewPayPalClient(cfg.PayPal.ClientID, cfg.PayPal.Secret, true)
@@ -90,7 +103,7 @@ func main() {
 	// 4. Initialize Usecases
 	userUsecase := usecase.NewUserUsecase(userRepo, cfg.Server.JWTSecret)
 	busUsecase := usecase.NewBusUsecase(busRepo, redisRepo)
-	orderUsecase := usecase.NewOrderUsecase(orderRepo, busRepo, redisRepo, ch, paypalClient, cfg.PayPal.ReturnURL, cfg.PayPal.CancelURL)
+	orderUsecase := usecase.NewOrderUsecase(orderRepo, busRepo, redisRepo, ch, paypalClient, aliClient, cfg.Alipay.NotifyURL, cfg.PayPal.ReturnURL, cfg.PayPal.CancelURL)
 
 	// 4.5 Warmup Redis Cache (Populate stock from MySQL)
 	go func() {
@@ -110,7 +123,8 @@ func main() {
 
 	// 5. Initialize Delivery (HTTP & MQ)
 	r := gin.Default()
-	deliveryHTTP.NewRouter(r, userUsecase, busUsecase, orderUsecase, cfg.Server.JWTSecret, cfg.PayPal.CancelURL)
+	deliveryHTTP.NewRouter(r, userUsecase, busUsecase, orderUsecase, aliClient, cfg.Server.JWTSecret, cfg.PayPal.CancelURL)
+
 
 
 	// Start MQ Consumer

@@ -17,3 +17,10 @@ paypal:
   secret: "your_paypal_secret"
   return_url: "http://localhost:8080/api/v1/payments/paypal/capture"
   cancel_url: "http://localhost:5174/orders"
+
+alipay:
+  app_id: "your_sandbox_app_id"
+  private_key: "your_app_private_key"
+  alipay_public_key: "alipay_public_key"
+  notify_url: "http://your-domain.com/api/v1/payments/alipay/notify"
+  return_url: "http://localhost:5174/orders"

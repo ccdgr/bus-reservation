@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strconv"
 
 	"github.com/ccdgr/bus-reservation/internal/domain"
 	"github.com/ccdgr/bus-reservation/pkg/payment"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/smartwalle/alipay/v3"
 )
 
 type orderUsecase struct {
@@ -16,6 +18,8 @@ type orderUsecase struct {
 	redisRepo    domain.BusRepository
 	mqChannel    *amqp.Channel
 	paypalClient *payment.PayPalClient
+	aliClient    *alipay.Client
+	notifyURL    string
 	returnURL    string
 	cancelURL    string
 }
@@ -26,7 +30,8 @@ func NewOrderUsecase(
 	redisRepo domain.BusRepository,
 	mqChannel *amqp.Channel,
 	paypalClient *payment.PayPalClient,
-	returnURL, cancelURL string,
+	aliClient *alipay.Client,
+	notifyURL, returnURL, cancelURL string,
 ) domain.OrderUsecase {
 	return &orderUsecase{
 		orderRepo:    orderRepo,
@@ -34,6 +39,8 @@ func NewOrderUsecase(
 		redisRepo:    redisRepo,
 		mqChannel:    mqChannel,
 		paypalClient: paypalClient,
+		aliClient:    aliClient,
+		notifyURL:    notifyURL,
 		returnURL:    returnURL,
 		cancelURL:    cancelURL,
 	}
@@ -184,7 +191,7 @@ func (u *orderUsecase) Cancel(ctx context.Context, orderID uint64) error {
 	return u.busRepo.UpdateSeat(ctx, order.BusID, 1)
 }
 
-func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) (string, error) {
+func (u *orderUsecase) Pay(ctx context.Context, orderID uint64, paymentMethod string) (string, error) {
 	order, err := u.orderRepo.GetByID(ctx, orderID)
 	if err != nil {
 		return "", err
@@ -194,7 +201,7 @@ func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) (string, error) 
 		return "", fmt.Errorf("当前状态 [%s] 无法发起支付", domain.GetStatusName(order.Status))
 	}
 
-	if u.paypalClient != nil {
+	if paymentMethod == "paypal" && u.paypalClient != nil {
 		params := payment.CreateOrderParams{
 			Amount:    "5.00",
 			ReturnURL: fmt.Sprintf("%s?order_id=%d", u.returnURL, orderID),
@@ -206,11 +213,43 @@ func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) (string, error) 
 			return "", err
 		}
 		return url, nil
+	} else if paymentMethod == "alipay" && u.aliClient != nil {
+		var p = alipay.TradePagePay{}
+		p.NotifyURL = u.notifyURL
+		p.ReturnURL = u.cancelURL // frontend orders page
+		p.Subject = fmt.Sprintf("Bus Reservation Order #%d", orderID)
+		p.OutTradeNo = strconv.FormatUint(orderID, 10)
+		p.TotalAmount = "5.00" // Fixed 5 RMB amount
+		p.ProductCode = "FAST_INSTANT_TRADE_PAY"
+
+		url, err := u.aliClient.TradePagePay(p)
+		if err != nil {
+			slog.Error("调用 Alipay 创建订单失败", "error", err)
+			return "", err
+		}
+		return url.String(), nil
 	}
 
 	// Mock payment logic
 	err = u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusPendingVerification)
 	return "", err
+}
+
+func (u *orderUsecase) ConfirmAlipayPayment(ctx context.Context, orderID uint64) error {
+	order, err := u.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+
+	if !domain.CanTransition(order.Status, domain.StatusPendingVerification) {
+		// Idempotent success
+		if order.Status == domain.StatusPendingVerification {
+			return nil
+		}
+		return fmt.Errorf("当前状态 [%s] 无法确认支付", domain.GetStatusName(order.Status))
+	}
+
+	return u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusPendingVerification)
 }
 
 func (u *orderUsecase) CapturePayPalPayment(ctx context.Context, orderID uint64, paypalToken string) error {
