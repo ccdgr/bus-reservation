@@ -74,7 +74,7 @@ const ConfirmOrder: React.FC = () => {
   }, [busId]);
 
   const handlePay = async () => {
-    if (selectedMethod !== 'alipay') return;
+    if (selectedMethod !== 'paypal') return;
 
     setProcessing(true);
     try {
@@ -84,10 +84,15 @@ const ConfirmOrder: React.FC = () => {
 
       // 2. Call payment API
       if (orderID) {
-        await client.post(`/orders/${orderID}/pay`);
-        setStatus({ type: 'success', msg: '支付成功' });
-        setOpen(true);
-        setTimeout(() => navigate('/orders'), 1500);
+        const payRes = await client.post(`/orders/${orderID}/pay`);
+        if (payRes.data.payment_url) {
+          window.location.href = payRes.data.payment_url;
+          return;
+        } else {
+          setStatus({ type: 'success', msg: '支付成功' });
+          setOpen(true);
+          setTimeout(() => navigate('/orders'), 1500);
+        }
       }
     } catch (err: any) {
       console.error('Payment failed:', err);

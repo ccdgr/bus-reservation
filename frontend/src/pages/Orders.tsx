@@ -85,7 +85,11 @@ const Orders: React.FC = () => {
 
   const handleAction = async (id: number, action: 'cancel' | 'pay' | 'verify') => {
     try {
-      await client.post(`/orders/${id}/${action}`);
+      const res = await client.post(`/orders/${id}/${action}`);
+      if (action === 'pay' && res.data.payment_url) {
+        window.location.href = res.data.payment_url;
+        return;
+      }
       setMsg(`操作成功`);
       setOpen(true);
       fetchOrders();
