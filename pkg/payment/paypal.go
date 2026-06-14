@@ -73,7 +73,7 @@ func (p *PayPalClient) CreateOrder(ctx context.Context, params CreateOrderParams
 		"purchase_units": []map[string]interface{}{
 			{
 				"amount": map[string]interface{}{
-					"currency_code": "CNY",
+					"currency_code": "USD",
 					"value":         params.Amount,
 				},
 			},
@@ -100,7 +100,10 @@ func (p *PayPalClient) CreateOrder(ctx context.Context, params CreateOrderParams
 	defer res.Body.Close()
 
 	if res.StatusCode >= 400 {
-		return "", fmt.Errorf("create order failed with status: %d", res.StatusCode)
+		var errResp map[string]interface{}
+		json.NewDecoder(res.Body).Decode(&errResp)
+		errDetails, _ := json.Marshal(errResp)
+		return "", fmt.Errorf("创建 PayPal 订单失败，状态码: %d, 详情: %s", res.StatusCode, string(errDetails))
 	}
 
 	var result struct {

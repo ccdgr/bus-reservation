@@ -50,25 +50,25 @@ func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domai
 	// 1. 业务规则校验：同一用户同一车次只允许购买一次（限购）
 	hasActiveOrder, err := u.orderRepo.CheckUserHasActiveOrder(ctx, userID, busID)
 	if err != nil {
-		slog.Error("failed to check user active orders", "user_id", userID, "bus_id", busID, "error", err)
+		slog.Error("检查用户活跃订单失败", "user_id", userID, "bus_id", busID, "error", err)
 		return nil, err
 	}
 	if hasActiveOrder {
-		return nil, fmt.Errorf("you already have an active reservation for this bus trip")
+		return nil, fmt.Errorf("您已经预定了该车次，请勿重复购买")
 	}
 
 	bus, err := u.busRepo.GetByID(ctx, busID)
 	if err != nil {
-		return nil, fmt.Errorf("bus not found")
+		return nil, fmt.Errorf("未找到该班次")
 	}
 
 	ok, err := u.redisRepo.DecrSeat(ctx, busID)
 	if err != nil {
-		slog.Error("failed to decrease redis stock", "bus_id", busID, "error", err)
+		slog.Error("Redis 扣减库存失败", "bus_id", busID, "error", err)
 		return nil, err
 	}
 	if !ok {
-		return nil, fmt.Errorf("no seats available")
+		return nil, fmt.Errorf("该班次已售罄")
 	}
 
 	// 同步创建订单以获取 ID
@@ -78,7 +78,7 @@ func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domai
 		Status: domain.StatusPendingPayment,
 	}
 	if err := u.orderRepo.Create(ctx, order); err != nil {
-		slog.Error("failed to create order in db", "error", err)
+		slog.Error("在数据库中创建订单失败", "error", err)
 		u.redisRepo.IncrSeat(ctx, busID)
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domai
 	// 异步更新物理库存
 	go func() {
 		if err := u.busRepo.UpdateSeat(context.Background(), busID, -1); err != nil {
-			slog.Error("failed to update bus seat in db", "error", err)
+			slog.Error("更新数据库物理库存失败", "error", err)
 		}
 	}()
 
@@ -108,7 +108,7 @@ func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domai
 		})
 
 	if err != nil {
-		slog.Error("failed to publish delay cancel message", "error", err)
+		slog.Error("发送延时取消消息失败", "error", err)
 		// 不直接失败，因为订单已创建，只是可能无法自动超时取消
 	}
 
@@ -138,7 +138,7 @@ func (u *orderUsecase) Cancel(ctx context.Context, orderID uint64) error {
 	}
 
 	if !domain.CanTransition(order.Status, domain.StatusCancelled) {
-		return fmt.Errorf("current status %s cannot be cancelled", domain.GetStatusName(order.Status))
+		return fmt.Errorf("当前状态 [%s] 无法执行取消操作", domain.GetStatusName(order.Status))
 	}
 
 	err = u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusCancelled)
@@ -157,7 +157,7 @@ func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) (string, error) 
 	}
 
 	if !domain.CanTransition(order.Status, domain.StatusPendingVerification) {
-		return "", fmt.Errorf("current status %s cannot be paid", domain.GetStatusName(order.Status))
+		return "", fmt.Errorf("当前状态 [%s] 无法发起支付", domain.GetStatusName(order.Status))
 	}
 
 	if u.paypalClient != nil {
@@ -168,6 +168,7 @@ func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) (string, error) 
 		}
 		url, err := u.paypalClient.CreateOrder(ctx, params)
 		if err != nil {
+			slog.Error("调用 PayPal 创建订单失败", "error", err)
 			return "", err
 		}
 		return url, nil
@@ -189,12 +190,13 @@ func (u *orderUsecase) CapturePayPalPayment(ctx context.Context, orderID uint64,
 		if order.Status == domain.StatusPendingVerification {
 			return nil
 		}
-		return fmt.Errorf("current status %s cannot be captured", domain.GetStatusName(order.Status))
+		return fmt.Errorf("当前状态 [%s] 无法确认支付", domain.GetStatusName(order.Status))
 	}
 
 	// Call PayPal to capture the order
 	err = u.paypalClient.CaptureOrder(ctx, paypalToken)
 	if err != nil {
+		slog.Error("PayPal 扣款确认失败", "error", err)
 		return err
 	}
 
@@ -208,7 +210,7 @@ func (u *orderUsecase) Verify(ctx context.Context, orderID uint64) error {
 	}
 
 	if !domain.CanTransition(order.Status, domain.StatusVerified) {
-		return fmt.Errorf("current status %s cannot be verified", domain.GetStatusName(order.Status))
+		return fmt.Errorf("当前状态 [%s] 无法执行核验操作", domain.GetStatusName(order.Status))
 	}
 
 	return u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusVerified)
