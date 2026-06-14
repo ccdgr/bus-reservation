@@ -11,10 +11,3 @@ redis:
 
 rabbitmq:
   url: "amqp://guest:guest@localhost:5672/"
-
-alipay:
-  app_id: "your_sandbox_app_id"
-  private_key: "your_app_private_key"
-  alipay_public_key: "alipay_public_key"
-  notify_url: "http://your-domain.com/api/v1/payments/alipay/notify"
-  return_url: "http://your-domain.com/orders"

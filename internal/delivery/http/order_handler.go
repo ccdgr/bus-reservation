@@ -3,62 +3,23 @@ package http
 import (
 	"net/http"
 	"strconv"
-	"log/slog"
 
 	"github.com/ccdgr/bus-reservation/internal/domain"
 	"github.com/gin-gonic/gin"
-	"github.com/smartwalle/alipay/v3"
 )
 
 type OrderHandler struct {
-	usecase   domain.OrderUsecase
-	aliClient *alipay.Client
+	usecase domain.OrderUsecase
 }
 
-func NewOrderHandler(r *gin.RouterGroup, usecase domain.OrderUsecase, aliClient *alipay.Client, authMiddleware gin.HandlerFunc) {
-	handler := &OrderHandler{usecase: usecase, aliClient: aliClient}
+func NewOrderHandler(r *gin.RouterGroup, usecase domain.OrderUsecase, authMiddleware gin.HandlerFunc) {
+	handler := &OrderHandler{usecase: usecase}
 	r.Use(authMiddleware)
 	r.POST("", handler.CreateOrder)
 	r.GET("", handler.ListUserOrders)
 	r.POST("/:id/cancel", handler.CancelOrder)
 	r.POST("/:id/pay", handler.PayOrder)
 	r.POST("/:id/verify", handler.VerifyOrder)
-}
-
-func RegisterPublicOrderHandler(r *gin.RouterGroup, usecase domain.OrderUsecase, aliClient *alipay.Client) {
-	handler := &OrderHandler{usecase: usecase, aliClient: aliClient}
-	r.POST("/alipay/notify", handler.AlipayNotify)
-}
-
-func (h *OrderHandler) AlipayNotify(c *gin.Context) {
-	if h.aliClient == nil {
-		c.String(http.StatusBadRequest, "fail")
-		return
-	}
-
-	req := c.Request
-	req.ParseForm()
-
-	noti, err := h.aliClient.DecodeNotification(c.Request.Context(), req.Form)
-	if err != nil {
-		slog.Error("failed to decode alipay notification", "error", err)
-		c.String(http.StatusBadRequest, "fail")
-		return
-	}
-
-	if noti.TradeStatus == "TRADE_SUCCESS" {
-		orderID, err := strconv.ParseUint(noti.OutTradeNo, 10, 64)
-		if err == nil {
-			err = h.usecase.ConfirmPayment(c.Request.Context(), orderID)
-			if err != nil {
-				slog.Error("failed to confirm payment", "order_id", orderID, "error", err)
-			} else {
-				slog.Info("alipay payment confirmed", "order_id", orderID)
-			}
-		}
-	}
-
-	h.aliClient.ACKNotification(c.Writer)
 }
 
 type createOrderRequest struct {

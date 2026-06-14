@@ -77,7 +77,6 @@ docker-compose up -d
 ### 2. 启动后端
 ```bash
 cp config.yaml.example config.yaml
-# 修改 config.yaml 中的 DSN 和密钥配置
 go run cmd/server/main.go
 ```
 
