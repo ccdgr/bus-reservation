@@ -22,6 +22,12 @@ type Config struct {
 	RabbitMQ struct {
 		URL string `yaml:"url"`
 	} `yaml:"rabbitmq"`
+	PayPal struct {
+		ClientID  string `yaml:"client_id"`
+		Secret    string `yaml:"secret"`
+		ReturnURL string `yaml:"return_url"`
+		CancelURL string `yaml:"cancel_url"`
+	} `yaml:"paypal"`
 }
 
 func LoadConfig(path string) (*Config, error) {

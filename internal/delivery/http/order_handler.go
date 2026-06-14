@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -20,6 +21,36 @@ func NewOrderHandler(r *gin.RouterGroup, usecase domain.OrderUsecase, authMiddle
 	r.POST("/:id/cancel", handler.CancelOrder)
 	r.POST("/:id/pay", handler.PayOrder)
 	r.POST("/:id/verify", handler.VerifyOrder)
+}
+
+func RegisterPublicOrderHandler(r *gin.RouterGroup, usecase domain.OrderUsecase, frontendCancelURL string) {
+	handler := &OrderHandler{usecase: usecase}
+	r.GET("/paypal/capture", func(c *gin.Context) {
+		orderIDStr := c.Query("order_id")
+		token := c.Query("token")
+
+		if orderIDStr == "" || token == "" {
+			c.Redirect(http.StatusTemporaryRedirect, frontendCancelURL)
+			return
+		}
+
+		orderID, err := strconv.ParseUint(orderIDStr, 10, 64)
+		if err != nil {
+			slog.Error("invalid order_id in paypal return", "error", err)
+			c.Redirect(http.StatusTemporaryRedirect, frontendCancelURL)
+			return
+		}
+
+		err = handler.usecase.CapturePayPalPayment(c.Request.Context(), orderID, token)
+		if err != nil {
+			slog.Error("failed to capture paypal payment", "order_id", orderID, "error", err)
+		} else {
+			slog.Info("paypal payment captured", "order_id", orderID)
+		}
+
+		// Always redirect to frontend orders page
+		c.Redirect(http.StatusTemporaryRedirect, frontendCancelURL)
+	})
 }
 
 type createOrderRequest struct {

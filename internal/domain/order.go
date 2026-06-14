@@ -41,6 +41,7 @@ type OrderUsecase interface {
 	ListByUserID(ctx context.Context, userID uint64) ([]*Order, error)
 	Cancel(ctx context.Context, orderID uint64) error
 	Pay(ctx context.Context, orderID uint64) (string, error)
+	CapturePayPalPayment(ctx context.Context, orderID uint64, paypalToken string) error
 	Verify(ctx context.Context, orderID uint64) error
 }
 

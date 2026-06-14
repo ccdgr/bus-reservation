@@ -24,7 +24,6 @@ import {
   AccessTime, 
   Person,
   CreditCard,
-  ChatBubble,
   AccountBalanceWallet,
   ReceiptLong
 } from '@mui/icons-material';
@@ -152,7 +151,7 @@ const ConfirmOrder: React.FC = () => {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="subtitle1" color="text.secondary">乘车费用</Typography>
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', color: 'error.main' }}>
-              <Typography variant="body2">¥</Typography>
+              <Typography variant="body2">$</Typography>
               <Typography variant="h6" sx={{ fontWeight: 'bold' }}>5.00</Typography>
             </Stack>
           </Box>
@@ -182,7 +181,7 @@ const ConfirmOrder: React.FC = () => {
       >
         <Box>
           <Typography variant="caption" color="text.secondary">总计</Typography>
-          <Typography variant="h5" color="error.main" sx={{ fontWeight: 'bold' }}>¥ 5.00</Typography>
+          <Typography variant="h5" color="error.main" sx={{ fontWeight: 'bold' }}>$ 5.00</Typography>
         </Box>
         <Button 
           variant="contained" 
@@ -208,23 +207,30 @@ const ConfirmOrder: React.FC = () => {
           <List sx={{ pt: 0 }}>
             <ListItem disablePadding sx={{ mb: 1 }}>
               <ListItemButton 
-                selected={selectedMethod === 'alipay'}
-                onClick={() => setSelectedMethod('alipay')}
-                sx={{ borderRadius: 2, border: selectedMethod === 'alipay' ? '1px solid #1677FF' : '1px solid transparent' }}
+                selected={selectedMethod === 'paypal'}
+                onClick={() => setSelectedMethod('paypal')}
+                sx={{ borderRadius: 2, border: selectedMethod === 'paypal' ? '1px solid #003087' : '1px solid transparent' }}
                 disabled={processing}
               >
-                <ListItemIcon><AccountBalanceWallet sx={{ color: '#1677FF', fontSize: 32 }} /></ListItemIcon>
+                <ListItemIcon>
+                  <Box
+                    component="img"
+                    src="https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg"
+                    alt="PayPal"
+                    sx={{ height: 24, width: 'auto' }}
+                  />
+                </ListItemIcon>
                 <ListItemText 
-                  primary={<Typography sx={{ fontWeight: 'bold', color: '#1677FF' }}>支付宝支付 (沙箱环境)</Typography>} 
-                  secondary="推荐使用" 
+                  primary={<Typography sx={{ fontWeight: 'bold', color: '#003087' }}>PayPal (Sandbox)</Typography>} 
+                  secondary="国际支付" 
                 />
               </ListItemButton>
             </ListItem>
             
             <ListItem disablePadding sx={{ mb: 1 }}>
               <ListItemButton disabled>
-                <ListItemIcon><ChatBubble sx={{ color: '#ccc', fontSize: 32 }} /></ListItemIcon>
-                <ListItemText primary="微信支付" secondary="暂不支持" />
+                <ListItemIcon><AccountBalanceWallet sx={{ color: '#ccc', fontSize: 32 }} /></ListItemIcon>
+                <ListItemText primary="支付宝支付" secondary="暂不支持" />
               </ListItemButton>
             </ListItem>
 
@@ -241,10 +247,10 @@ const ConfirmOrder: React.FC = () => {
             variant="contained" 
             size="large" 
             onClick={handlePay} 
-            disabled={processing || selectedMethod !== 'alipay'}
-            sx={{ mt: 3, py: 1.5, borderRadius: 2, fontWeight: 'bold', bgcolor: '#1677FF' }}
+            disabled={processing || selectedMethod !== 'paypal'}
+            sx={{ mt: 3, py: 1.5, borderRadius: 2, fontWeight: 'bold', bgcolor: '#003087', '&:hover': { bgcolor: '#001C66' } }}
           >
-            {processing ? <CircularProgress size={24} color="inherit" /> : '立即支付 ¥ 5.00'}
+            {processing ? <CircularProgress size={24} color="inherit" /> : '立即支付 $5.00'}
           </Button>
         </Box>
       </Drawer>
@@ -259,3 +265,4 @@ const ConfirmOrder: React.FC = () => {
 };
 
 export default ConfirmOrder;
+;

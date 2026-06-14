@@ -21,13 +21,14 @@ import (
 
 	"github.com/ccdgr/bus-reservation/pkg/database"
 	"github.com/ccdgr/bus-reservation/pkg/mq"
+	"github.com/ccdgr/bus-reservation/pkg/payment"
 )
 
 type Container struct {
-	Config    *config.Config
-	DB        *gorm.DB
-	RDB       *redis.Client
-	MQ        *amqp.Connection
+	Config *config.Config
+	DB     *gorm.DB
+	RDB    *redis.Client
+	MQ     *amqp.Connection
 }
 
 func main() {
@@ -72,6 +73,14 @@ func main() {
 	}
 	defer ch.Close()
 
+	var paypalClient *payment.PayPalClient
+	if cfg.PayPal.ClientID != "" && cfg.PayPal.ClientID != "your_paypal_client_id" {
+		paypalClient = payment.NewPayPalClient(cfg.PayPal.ClientID, cfg.PayPal.Secret, true)
+		slog.Info("paypal client initialized")
+	} else {
+		slog.Warn("paypal configuration missing or using defaults, running in mock mode")
+	}
+
 	// 3. Initialize Repositories
 	userRepo := repository.NewMySQLUserRepository(db)
 	busRepo := repository.NewMySQLBusRepository(db)
@@ -81,7 +90,7 @@ func main() {
 	// 4. Initialize Usecases
 	userUsecase := usecase.NewUserUsecase(userRepo, cfg.Server.JWTSecret)
 	busUsecase := usecase.NewBusUsecase(busRepo, redisRepo)
-	orderUsecase := usecase.NewOrderUsecase(orderRepo, busRepo, redisRepo, ch)
+	orderUsecase := usecase.NewOrderUsecase(orderRepo, busRepo, redisRepo, ch, paypalClient, cfg.PayPal.ReturnURL, cfg.PayPal.CancelURL)
 
 	// 4.5 Warmup Redis Cache (Populate stock from MySQL)
 	go func() {
@@ -101,7 +110,8 @@ func main() {
 
 	// 5. Initialize Delivery (HTTP & MQ)
 	r := gin.Default()
-	deliveryHTTP.NewRouter(r, userUsecase, busUsecase, orderUsecase, cfg.Server.JWTSecret)
+	deliveryHTTP.NewRouter(r, userUsecase, busUsecase, orderUsecase, cfg.Server.JWTSecret, cfg.PayPal.CancelURL)
+
 
 	// Start MQ Consumer
 	consumer := deliveryMQ.NewOrderConsumer(mqConn, orderRepo, busRepo, redisRepo)
@@ -130,7 +140,7 @@ func main() {
 	slog.Info("Shutting down server...")
 
 	cancel() // Stop MQ consumer
-	
+
 	ctx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 	if err := srv.Shutdown(ctx); err != nil {
@@ -139,3 +149,4 @@ func main() {
 
 	slog.Info("Server exiting")
 }
+

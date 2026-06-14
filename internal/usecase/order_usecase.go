@@ -6,14 +6,18 @@ import (
 	"log/slog"
 
 	"github.com/ccdgr/bus-reservation/internal/domain"
+	"github.com/ccdgr/bus-reservation/pkg/payment"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type orderUsecase struct {
-	orderRepo domain.OrderRepository
-	busRepo   domain.BusRepository
-	redisRepo domain.BusRepository
-	mqChannel *amqp.Channel
+	orderRepo    domain.OrderRepository
+	busRepo      domain.BusRepository
+	redisRepo    domain.BusRepository
+	mqChannel    *amqp.Channel
+	paypalClient *payment.PayPalClient
+	returnURL    string
+	cancelURL    string
 }
 
 func NewOrderUsecase(
@@ -21,12 +25,17 @@ func NewOrderUsecase(
 	busRepo domain.BusRepository,
 	redisRepo domain.BusRepository,
 	mqChannel *amqp.Channel,
+	paypalClient *payment.PayPalClient,
+	returnURL, cancelURL string,
 ) domain.OrderUsecase {
 	return &orderUsecase{
-		orderRepo: orderRepo,
-		busRepo:   busRepo,
-		redisRepo: redisRepo,
-		mqChannel: mqChannel,
+		orderRepo:    orderRepo,
+		busRepo:      busRepo,
+		redisRepo:    redisRepo,
+		mqChannel:    mqChannel,
+		paypalClient: paypalClient,
+		returnURL:    returnURL,
+		cancelURL:    cancelURL,
 	}
 }
 
@@ -141,9 +150,45 @@ func (u *orderUsecase) Pay(ctx context.Context, orderID uint64) (string, error) 
 		return "", fmt.Errorf("current status %s cannot be paid", domain.GetStatusName(order.Status))
 	}
 
+	if u.paypalClient != nil {
+		params := payment.CreateOrderParams{
+			Amount:    "5.00",
+			ReturnURL: fmt.Sprintf("%s?order_id=%d", u.returnURL, orderID),
+			CancelURL: u.cancelURL,
+		}
+		url, err := u.paypalClient.CreateOrder(ctx, params)
+		if err != nil {
+			return "", err
+		}
+		return url, nil
+	}
+
 	// Mock payment logic
 	err = u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusPendingVerification)
 	return "", err
+}
+
+func (u *orderUsecase) CapturePayPalPayment(ctx context.Context, orderID uint64, paypalToken string) error {
+	order, err := u.orderRepo.GetByID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+
+	if !domain.CanTransition(order.Status, domain.StatusPendingVerification) {
+		// Idempotent success
+		if order.Status == domain.StatusPendingVerification {
+			return nil
+		}
+		return fmt.Errorf("current status %s cannot be captured", domain.GetStatusName(order.Status))
+	}
+
+	// Call PayPal to capture the order
+	err = u.paypalClient.CaptureOrder(ctx, paypalToken)
+	if err != nil {
+		return err
+	}
+
+	return u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusPendingVerification)
 }
 
 func (u *orderUsecase) Verify(ctx context.Context, orderID uint64) error {
