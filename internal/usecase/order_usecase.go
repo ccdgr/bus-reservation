@@ -47,6 +47,16 @@ type OrderMessage struct {
 }
 
 func (u *orderUsecase) Create(ctx context.Context, userID, busID uint64) (*domain.Order, error) {
+	// 1. 业务规则校验：同一用户同一车次只允许购买一次（限购）
+	hasActiveOrder, err := u.orderRepo.CheckUserHasActiveOrder(ctx, userID, busID)
+	if err != nil {
+		slog.Error("failed to check user active orders", "user_id", userID, "bus_id", busID, "error", err)
+		return nil, err
+	}
+	if hasActiveOrder {
+		return nil, fmt.Errorf("you already have an active reservation for this bus trip")
+	}
+
 	bus, err := u.busRepo.GetByID(ctx, busID)
 	if err != nil {
 		return nil, fmt.Errorf("bus not found")

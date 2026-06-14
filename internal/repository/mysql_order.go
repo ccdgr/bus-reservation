@@ -37,3 +37,16 @@ func (r *mysqlOrderRepository) ListByUserID(ctx context.Context, userID uint64) 
 	}
 	return orders, nil
 }
+
+func (r *mysqlOrderRepository) CheckUserHasActiveOrder(ctx context.Context, userID, busID uint64) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&domain.Order{}).
+		Where("user_id = ? AND bus_id = ? AND status IN (?, ?, ?)", 
+			userID, busID, 
+			domain.StatusPendingPayment, domain.StatusPendingVerification, domain.StatusVerified).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
