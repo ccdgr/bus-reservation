@@ -1,9 +1,11 @@
 package http
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/ccdgr/bus-reservation/internal/domain"
 	"github.com/gin-gonic/gin"
@@ -11,16 +13,46 @@ import (
 
 type OrderHandler struct {
 	usecase domain.OrderUsecase
+	reqChan chan *createOrderTask
+}
+
+type createOrderTask struct {
+	Ctx    context.Context
+	UserID uint64
+	BusID  uint64
+	Result chan *taskResult
+}
+
+type taskResult struct {
+	Order *domain.Order
+	Err   error
 }
 
 func NewOrderHandler(r *gin.RouterGroup, usecase domain.OrderUsecase, authMiddleware gin.HandlerFunc) {
-	handler := &OrderHandler{usecase: usecase}
+	handler := &OrderHandler{
+		usecase: usecase,
+		reqChan: make(chan *createOrderTask, 5000), // Buffer for 5000 concurrent requests
+	}
+	
+	// Start worker pool to process order requests
+	// Number of workers determines how many DB/Redis calls happen concurrently
+	for i := 0; i < 20; i++ {
+		go handler.worker()
+	}
+
 	r.Use(authMiddleware)
 	r.POST("", handler.CreateOrder)
 	r.GET("", handler.ListUserOrders)
 	r.POST("/:id/cancel", handler.CancelOrder)
 	r.POST("/:id/pay", handler.PayOrder)
 	r.POST("/:id/verify", handler.VerifyOrder)
+}
+
+func (h *OrderHandler) worker() {
+	for task := range h.reqChan {
+		order, err := h.usecase.Create(task.Ctx, task.UserID, task.BusID)
+		task.Result <- &taskResult{Order: order, Err: err}
+	}
 }
 
 func RegisterPublicOrderHandler(r *gin.RouterGroup, usecase domain.OrderUsecase, frontendCancelURL string) {
@@ -65,13 +97,40 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	}
 
 	userID := c.MustGet("user_id").(uint64)
-	order, err := h.usecase.Create(c.Request.Context(), userID, req.BusID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+
+	// Create a task and push it to the channel
+	task := &createOrderTask{
+		Ctx:    c.Request.Context(), // Use context for cancellation
+		UserID: userID,
+		BusID:  req.BusID,
+		Result: make(chan *taskResult, 1),
+	}
+
+	select {
+	case h.reqChan <- task:
+		// Task accepted, wait for processing
+	default:
+		// Queue is full, shed load immediately
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "系统繁忙，请稍后再试 (System overloaded)"})
 		return
 	}
 
-	c.JSON(http.StatusAccepted, order)
+	// Wait for the worker to finish, with an HTTP-level timeout
+	select {
+	case res := <-task.Result:
+		if res.Err != nil {
+			// StatusConflict or BadRequest depending on error logic, using 500 for simplicity here but could be 400 for 'already booked'
+			c.JSON(http.StatusBadRequest, gin.H{"error": res.Err.Error()})
+			return
+		}
+		c.JSON(http.StatusAccepted, res.Order)
+	case <-time.After(5 * time.Second):
+		// If worker takes too long, timeout the HTTP request to free up the connection
+		c.JSON(http.StatusRequestTimeout, gin.H{"error": "请求超时，请稍后在订单列表中查看结果 (Request timeout)"})
+	case <-c.Request.Context().Done():
+		// Client disconnected early
+		return
+	}
 }
 
 func (h *OrderHandler) ListUserOrders(c *gin.Context) {
