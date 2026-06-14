@@ -12,6 +12,7 @@ const (
 	StatusCancelled           = 2 // 已取消
 	StatusExpired             = 3 // 已过期
 	StatusVerified            = 4 // 已核验
+	StatusRefunding           = 5 // 退款中
 )
 
 // Order 代表预约订单
@@ -19,6 +20,7 @@ type Order struct {
 	ID        uint64    `json:"id" gorm:"primaryKey"`
 	UserID    uint64    `json:"user_id" gorm:"index"`
 	BusID     uint64    `json:"bus_id" gorm:"index"`
+	PaymentID string    `json:"payment_id"`
 	Status    int       `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -32,6 +34,7 @@ type OrderRepository interface {
 	Create(ctx context.Context, order *Order) error
 	GetByID(ctx context.Context, id uint64) (*Order, error)
 	UpdateStatus(ctx context.Context, orderID uint64, status int) error
+	UpdateStatusAndPaymentID(ctx context.Context, orderID uint64, status int, paymentID string) error
 	ListByUserID(ctx context.Context, userID uint64) ([]*Order, error)
 	CheckUserHasActiveOrder(ctx context.Context, userID, busID uint64) (bool, error)
 }
@@ -53,8 +56,11 @@ func CanTransition(from, to int) bool {
 		// 待支付可以去：待核验(支付)、已取消(手动/超时)、已过期(发车)
 		return to == StatusPendingVerification || to == StatusCancelled || to == StatusExpired
 	case StatusPendingVerification:
-		// 待核验可以去：已核验(乘车)、已取消(退款)、已过期(漏乘)
-		return to == StatusVerified || to == StatusCancelled || to == StatusExpired
+		// 待核验可以去：已核验(乘车)、退款中(退票)、已过期(漏乘)
+		return to == StatusVerified || to == StatusRefunding || to == StatusExpired
+	case StatusRefunding:
+		// 退款中可以去：已取消(退款成功)
+		return to == StatusCancelled
 	default:
 		// 其他终态 (Cancelled, Expired, Verified) 不允许再流转
 		return false
@@ -73,6 +79,8 @@ func GetStatusName(status int) string {
 		return "已过期"
 	case StatusVerified:
 		return "已核验"
+	case StatusRefunding:
+		return "退款中"
 	default:
 		return "未知"
 	}

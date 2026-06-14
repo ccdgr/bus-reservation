@@ -114,7 +114,7 @@ func main() {
 
 
 	// Start MQ Consumer
-	consumer := deliveryMQ.NewOrderConsumer(mqConn, orderRepo, busRepo, redisRepo)
+	consumer := deliveryMQ.NewOrderConsumer(mqConn, orderRepo, busRepo, redisRepo, paypalClient)
 	ctx, cancel := context.WithCancel(context.Background())
 	go consumer.Start(ctx)
 

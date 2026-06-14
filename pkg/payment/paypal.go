@@ -125,13 +125,56 @@ func (p *PayPalClient) CreateOrder(ctx context.Context, params CreateOrderParams
 	return "", fmt.Errorf("approve link not found")
 }
 
-func (p *PayPalClient) CaptureOrder(ctx context.Context, orderID string) error {
+func (p *PayPalClient) CaptureOrder(ctx context.Context, orderID string) (string, error) {
+	token, err := p.getAccessToken(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/v2/checkout/orders/%s/capture", p.BaseURL, orderID), nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := p.Client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode >= 400 {
+		return "", fmt.Errorf("capture failed with status: %d", res.StatusCode)
+	}
+
+	var result struct {
+		PurchaseUnits []struct {
+			Payments struct {
+				Captures []struct {
+					ID string `json:"id"`
+				} `json:"captures"`
+			} `json:"payments"`
+		} `json:"purchase_units"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return "", err
+	}
+
+	if len(result.PurchaseUnits) > 0 && len(result.PurchaseUnits[0].Payments.Captures) > 0 {
+		return result.PurchaseUnits[0].Payments.Captures[0].ID, nil
+	}
+
+	return "", fmt.Errorf("capture id not found in response")
+}
+
+func (p *PayPalClient) RefundOrder(ctx context.Context, captureID string) error {
 	token, err := p.getAccessToken(ctx)
 	if err != nil {
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/v2/checkout/orders/%s/capture", p.BaseURL, orderID), nil)
+	req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("%s/v2/payments/captures/%s/refund", p.BaseURL, captureID), bytes.NewBufferString("{}"))
 	if err != nil {
 		return err
 	}
@@ -145,7 +188,10 @@ func (p *PayPalClient) CaptureOrder(ctx context.Context, orderID string) error {
 	defer res.Body.Close()
 
 	if res.StatusCode >= 400 {
-		return fmt.Errorf("capture failed with status: %d", res.StatusCode)
+		var errResp map[string]interface{}
+		json.NewDecoder(res.Body).Decode(&errResp)
+		errDetails, _ := json.Marshal(errResp)
+		return fmt.Errorf("退款失败，状态码: %d, 详情: %s", res.StatusCode, string(errDetails))
 	}
 	return nil
 }

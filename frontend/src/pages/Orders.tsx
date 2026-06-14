@@ -128,6 +128,7 @@ const Orders: React.FC = () => {
       case 2: return <Chip label="已取消" size="small" color="default" variant="outlined" />;
       case 3: return <Chip label="已过期" size="small" color="error" variant="outlined" />;
       case 4: return <Chip label="已核验" size="small" color="success" variant="outlined" />;
+      case 5: return <Chip label="退款中" size="small" color="secondary" variant="outlined" />;
       default: return <Chip label="未知" size="small" />;
     }
   };
@@ -153,6 +154,7 @@ const Orders: React.FC = () => {
         <Tab label="全部" />
         <Tab label="待支付" />
         <Tab label="待核验" />
+        <Tab label="退款中" />
         <Tab label="已取消" />
         <Tab label="已过期" />
         <Tab label="已核验" />

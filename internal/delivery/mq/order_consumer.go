@@ -6,22 +6,25 @@ import (
 	"log/slog"
 
 	"github.com/ccdgr/bus-reservation/internal/domain"
+	"github.com/ccdgr/bus-reservation/pkg/payment"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type OrderConsumer struct {
-	conn      *amqp.Connection
-	orderRepo domain.OrderRepository
-	busRepo   domain.BusRepository
-	redisRepo domain.BusRepository
+	conn         *amqp.Connection
+	orderRepo    domain.OrderRepository
+	busRepo      domain.BusRepository
+	redisRepo    domain.BusRepository
+	paypalClient *payment.PayPalClient
 }
 
-func NewOrderConsumer(conn *amqp.Connection, orderRepo domain.OrderRepository, busRepo domain.BusRepository, redisRepo domain.BusRepository) *OrderConsumer {
+func NewOrderConsumer(conn *amqp.Connection, orderRepo domain.OrderRepository, busRepo domain.BusRepository, redisRepo domain.BusRepository, paypalClient *payment.PayPalClient) *OrderConsumer {
 	return &OrderConsumer{
-		conn:      conn,
-		orderRepo: orderRepo,
-		busRepo:   busRepo,
-		redisRepo: redisRepo,
+		conn:         conn,
+		orderRepo:    orderRepo,
+		busRepo:      busRepo,
+		redisRepo:    redisRepo,
+		paypalClient: paypalClient,
 	}
 }
 
@@ -65,7 +68,64 @@ func (c *OrderConsumer) Start(ctx context.Context) error {
 		return err
 	}
 
-	// 协程: 处理过期订单取消
+	// 3. 声明退款队列
+	qRefund, err := ch.QueueDeclare("order_refund", true, false, false, false, nil)
+	if err != nil {
+		return err
+	}
+
+	refundMsgs, err := ch.Consume(qRefund.Name, "", false, false, false, false, nil)
+	if err != nil {
+		return err
+	}
+
+	// 协程 A: 处理退款
+	go func() {
+		for d := range refundMsgs {
+			var msg OrderMessage
+			if err := json.Unmarshal(d.Body, &msg); err != nil {
+				d.Ack(false)
+				continue
+			}
+
+			order, err := c.orderRepo.GetByID(ctx, msg.OrderID)
+			if err != nil {
+				slog.Error("处理退款时无法获取订单", "order_id", msg.OrderID, "error", err)
+				d.Nack(false, true)
+				continue
+			}
+
+			if order.Status == domain.StatusRefunding {
+				if order.PaymentID != "" && c.paypalClient != nil {
+					err = c.paypalClient.RefundOrder(ctx, order.PaymentID)
+					if err != nil {
+						slog.Error("PayPal 退款接口调用失败", "order_id", order.ID, "payment_id", order.PaymentID, "error", err)
+						d.Nack(false, true) // 退款失败重回队列重试
+						continue
+					}
+				}
+
+				// 即使没有 payment_id (mock payment)，我们也将其标记为退款成功并恢复库存
+				err = c.orderRepo.UpdateStatus(ctx, order.ID, domain.StatusCancelled)
+				if err != nil {
+					slog.Error("更新订单为已取消状态失败", "order_id", order.ID, "error", err)
+					d.Nack(false, true)
+					continue
+				}
+
+				c.redisRepo.IncrSeat(ctx, order.BusID)
+				c.busRepo.UpdateSeat(ctx, order.BusID, 1)
+
+				slog.Info("订单退款并取消成功", "order_id", order.ID)
+			} else {
+				slog.Info("订单状态并非退款中，跳过", "order_id", order.ID)
+			}
+
+			d.Ack(false)
+		}
+	}()
+
+	// 协程 B: 处理过期订单取消
 	go func() {
 		for d := range cancelMsgs {
 			var msg OrderMessage

@@ -50,3 +50,10 @@ func (r *mysqlOrderRepository) CheckUserHasActiveOrder(ctx context.Context, user
 	}
 	return count > 0, nil
 }
+
+func (r *mysqlOrderRepository) UpdateStatusAndPaymentID(ctx context.Context, orderID uint64, status int, paymentID string) error {
+	return r.db.WithContext(ctx).Model(&domain.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{
+		"status":     status,
+		"payment_id": paymentID,
+	}).Error
+}

@@ -156,7 +156,7 @@ const ConfirmOrder: React.FC = () => {
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="subtitle1" color="text.secondary">乘车费用</Typography>
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', color: 'error.main' }}>
-              <Typography variant="body2">$</Typography>
+              <Typography variant="body2">¥</Typography>
               <Typography variant="h6" sx={{ fontWeight: 'bold' }}>5.00</Typography>
             </Stack>
           </Box>
@@ -186,7 +186,7 @@ const ConfirmOrder: React.FC = () => {
       >
         <Box>
           <Typography variant="caption" color="text.secondary">总计</Typography>
-          <Typography variant="h5" color="error.main" sx={{ fontWeight: 'bold' }}>$ 5.00</Typography>
+          <Typography variant="h5" color="error.main" sx={{ fontWeight: 'bold' }}>¥ 5.00</Typography>
         </Box>
         <Button 
           variant="contained" 

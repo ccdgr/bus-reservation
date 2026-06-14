@@ -137,6 +137,40 @@ func (u *orderUsecase) Cancel(ctx context.Context, orderID uint64) error {
 		return err
 	}
 
+	if order.Status == domain.StatusPendingVerification {
+		// 已支付状态取消，进入退款中状态
+		if !domain.CanTransition(order.Status, domain.StatusRefunding) {
+			return fmt.Errorf("当前状态 [%s] 无法执行退票操作", domain.GetStatusName(order.Status))
+		}
+
+		err = u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusRefunding)
+		if err != nil {
+			return err
+		}
+
+		// 发送退款消息到 MQ
+		refundMsg := OrderMessage{
+			OrderID: order.ID,
+			BusID:   order.BusID,
+		}
+		refundBody, _ := json.Marshal(refundMsg)
+		err = u.mqChannel.PublishWithContext(ctx,
+			"",
+			"order_refund",
+			true,
+			false,
+			amqp.Publishing{
+				ContentType:  "application/json",
+				Body:         refundBody,
+				DeliveryMode: amqp.Persistent,
+			})
+		if err != nil {
+			slog.Error("发送退款消息失败", "order_id", orderID, "error", err)
+			return fmt.Errorf("提交退款申请失败，请稍后再试")
+		}
+		return nil
+	}
+
 	if !domain.CanTransition(order.Status, domain.StatusCancelled) {
 		return fmt.Errorf("当前状态 [%s] 无法执行取消操作", domain.GetStatusName(order.Status))
 	}
@@ -194,13 +228,13 @@ func (u *orderUsecase) CapturePayPalPayment(ctx context.Context, orderID uint64,
 	}
 
 	// Call PayPal to capture the order
-	err = u.paypalClient.CaptureOrder(ctx, paypalToken)
+	captureID, err := u.paypalClient.CaptureOrder(ctx, paypalToken)
 	if err != nil {
 		slog.Error("PayPal 扣款确认失败", "error", err)
 		return err
 	}
 
-	return u.orderRepo.UpdateStatus(ctx, orderID, domain.StatusPendingVerification)
+	return u.orderRepo.UpdateStatusAndPaymentID(ctx, orderID, domain.StatusPendingVerification, captureID)
 }
 
 func (u *orderUsecase) Verify(ctx context.Context, orderID uint64) error {
